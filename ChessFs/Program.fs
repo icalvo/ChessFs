@@ -18,7 +18,7 @@ type Rank =
     | F7
     | F8
 
-let nextFile = function
+let nextRank = function
     | F1 -> Some F2
     | F2 -> Some F3
     | F3 -> Some F4
@@ -28,7 +28,7 @@ let nextFile = function
     | F7 -> Some F8
     | F8 -> None
 
-let prevFile = function
+let prevRank = function
     | F1 -> None
     | F2 -> Some F1
     | F3 -> Some F2
@@ -38,7 +38,7 @@ let prevFile = function
     | F7 -> Some F6
     | F8 -> Some F7
 
-let fileToInt = function
+let rankToInt = function
     | F1 -> 1
     | F2 -> 2
     | F3 -> 3
@@ -48,7 +48,7 @@ let fileToInt = function
     | F7 -> 7
     | F8 -> 8
 
-let nextRank = function
+let nextFile = function
     | A -> Some B
     | B -> Some C
     | C -> Some D
@@ -58,7 +58,7 @@ let nextRank = function
     | G -> Some H
     | H -> None
 
-let prevRank = function
+let prevFile = function
     | A -> None
     | B -> Some A
     | C -> Some B
@@ -77,7 +77,7 @@ let simplifyTuple = function
     | (Some a, Some b) -> Some (a, b)
     | _ -> None
 
-let move rankFn fileFn (a, b) = (fileFn a, rankFn b) |> simplifyTuple
+let move fileFn rankFn (f, r) = (fileFn f, rankFn r) |> simplifyTuple
 
 type Movement = Position -> Position option
 
@@ -285,11 +285,11 @@ let capabilities game pos =
     |> List.filter (fun (cs, act, p) -> isCheck (execute game cs p))
 
 
-let positionToString (r, f) =
-    sprintf "%A%i" r (fileToInt f)
+let positionToString ((f, r):Position) =
+    sprintf "%A%i" f (rankToInt r)
 
-let printPositions (l: Position list) =
-    l |> List.map positionToString |> List.iter (printf "%A")
+let printPositions =
+    List.map positionToString >> List.iter (printf "%A")
 
 // TESTING
 
