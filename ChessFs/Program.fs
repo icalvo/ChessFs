@@ -8,27 +8,15 @@
 
 type File = A | B | C | D | E | F | G | H
 
-type Rank = F1 | F2 | F3 | F4 | F5 | F6 | F7 | F8
-
-let nextRank = function
-    | A -> Some B
-    | B -> Some C
-    | C -> Some D
-    | D -> Some E
-    | E -> Some F
-    | F -> Some G
-    | G -> Some H
-    | H -> None
-
-let prevRank = function
-    | A -> None
-    | B -> Some A
-    | C -> Some B
-    | D -> Some C
-    | E -> Some D
-    | F -> Some E
-    | G -> Some F
-    | H -> Some G
+type Rank =
+    | F1
+    | F2
+    | F3
+    | F4
+    | F5
+    | F6
+    | F7
+    | F8
 
 let nextFile = function
     | F1 -> Some F2
@@ -60,6 +48,26 @@ let fileToInt = function
     | F7 -> 7
     | F8 -> 8
 
+let nextRank = function
+    | A -> Some B
+    | B -> Some C
+    | C -> Some D
+    | D -> Some E
+    | E -> Some F
+    | F -> Some G
+    | G -> Some H
+    | H -> None
+
+let prevRank = function
+    | A -> None
+    | B -> Some A
+    | C -> Some B
+    | D -> Some C
+    | E -> Some D
+    | F -> Some E
+    | G -> Some F
+    | H -> Some G
+
 let sameRank = Some
 let sameFile = Some
 
@@ -69,40 +77,40 @@ let simplifyTuple = function
     | (Some a, Some b) -> Some (a, b)
     | _ -> None
 
-let move rankFn fileFn (a, b) = (rankFn a, fileFn b) |> simplifyTuple
+let move rankFn fileFn (a, b) = (fileFn a, rankFn b) |> simplifyTuple
 
 type Movement = Position -> Position option
 
-let Up       : Movement = move nextRank sameFile
-let UpRight  : Movement = move nextRank nextFile
-let Right    : Movement = move sameRank nextFile
-let DownRight: Movement = move prevRank nextFile
-let Down     : Movement = move prevRank sameFile
-let DownLeft : Movement = move prevRank prevFile
-let Left     : Movement = move sameRank prevFile
-let UpLeft   : Movement = move nextRank prevFile
+let Up       : Movement = move sameFile nextRank 
+let UpRight  : Movement = move nextFile nextRank 
+let Right    : Movement = move nextFile sameRank 
+let DownRight: Movement = move nextFile prevRank 
+let Down     : Movement = move sameFile prevRank 
+let DownLeft : Movement = move prevFile prevRank 
+let Left     : Movement = move prevFile sameRank 
+let UpLeft   : Movement = move prevFile nextRank 
 
 let extend (moveFn: Movement) =
     moveFn >> Option.map (fun x -> (x, x)) |> Seq.unfold
 
-let Listapply arg fnseq = fnseq |> List.map (fun fn -> fn arg)
+let Listapply arg fnlist = fnlist |> List.map (fun fn -> fn arg)
 
-let bishopExtensions pos =
+let bishopReaches pos =
     [ UpRight; DownRight; DownLeft; UpLeft ]
     |> List.map extend
     |> Listapply pos
 
-let rookExtensions pos =
+let rookReaches pos =
     [ Up; Right; Down; Left ]
     |> List.map extend
     |> Listapply pos
 
-let queenExtensions pos =
-    [ bishopExtensions; rookExtensions ]
+let queenReaches pos =
+    [ bishopReaches; rookReaches ]
     |> Listapply pos
     |> List.concat
 
-let kingExtensions pos =
+let kingReaches pos =
     [ UpRight; DownRight; DownLeft; UpLeft; Up; Right; Down; Left ]
     |> Listapply pos
     |> List.choose id
@@ -112,7 +120,7 @@ let (>?>) f1 f2 = f1 >> Option.bind f2
 
 let (|?>) x f2 = Some x |> Option.bind f2
 
-let knightExtensions pos =
+let knightReaches pos =
     [
         Up >?> Left >?> Up;
         Up >?> Left >?> Left;
@@ -123,7 +131,7 @@ let knightExtensions pos =
     |> List.choose id
     |> List.map Seq.singleton
 
-let pawnMoveExtensions rankForDoubleMove moveFn pos =
+let pawnMoveReaches rankForDoubleMove moveFn pos =
     match pos with
     | (_, rank) when rank = rankForDoubleMove ->
         extend moveFn pos
@@ -134,7 +142,7 @@ let pawnMoveExtensions rankForDoubleMove moveFn pos =
         |> Seq.take 1
         |> List.singleton
 
-let pawnCaptureExtensions moveFn pos =
+let pawnCaptureReaches moveFn pos =
     [
         moveFn >?> Left;
         moveFn >?> Right;
@@ -143,7 +151,7 @@ let pawnCaptureExtensions moveFn pos =
     |> List.choose id
     |> List.map Seq.singleton
 
-let pawnEnPassantExtensions (rankForEnPassant: Rank) moveFn (pos: Position) =
+let pawnEnPassantReach (rankForEnPassant: Rank) moveFn (pos: Position) =
     match pos with
     | (_, rank) when rank = rankForEnPassant ->
         [
@@ -157,96 +165,141 @@ let pawnEnPassantExtensions (rankForEnPassant: Rank) moveFn (pos: Position) =
 
 type Colour = Black | White
 
-type ColourChessman = Colour * Chessman
+type Piece = Colour * Chessman
 
-type CellState = ColourChessman * Position
+type CellState = Piece * Position
 
 type GameState = CellState list
 
-let at (game: GameState) (pos: Position): CellState option =
-    List.tryFind (fun (ccm, p) -> p = pos) game
-
-let game1: GameState = [
-    ((White, Bishop), (A, F1))
-]
+let (@) (game: GameState) (pos: Position): CellState option =
+    List.tryFind (fun (_, p) -> p = pos) game
 
 type Action =
     | Move
     | Capture
     | EnPassant
 
-let colouredChessmanExtensions = function
+let pieceReaches = function
     | (White, Pawn) ->
         [
-            (pawnMoveExtensions F2 Up, [ Move; ]);
-            (pawnCaptureExtensions Up, [ Capture; ]);
-            (pawnEnPassantExtensions F5 Up, [ EnPassant; ])
+            (pawnMoveReaches    F2 Up, [ Move      ]);
+            (pawnCaptureReaches    Up, [ Capture   ]);
+            (pawnEnPassantReach F5 Up, [ EnPassant ])
         ]
     | (Black, Pawn) ->
         [
-            (pawnMoveExtensions F7 Down, [ Move; ]);
-            (pawnCaptureExtensions Down, [ Capture; ]);
-            (pawnEnPassantExtensions F4 Down, [ EnPassant; ])
+            (pawnMoveReaches F7 Down,    [ Move      ]);
+            (pawnCaptureReaches Down,    [ Capture   ]);
+            (pawnEnPassantReach F4 Down, [ EnPassant ])
         ]
-    | (_, Knight) -> [(knightExtensions, [ Move; Capture ])]
-    | (_, Bishop) -> [(bishopExtensions, [ Move; Capture ])]
-    | (_, Rook) -> [(rookExtensions, [ Move; Capture ])]
-    | (_, Queen) -> [(queenExtensions, [ Move; Capture ])]
-    | (_, King) -> [(kingExtensions, [ Move; Capture ])]
+    | (_, Knight) -> [(knightReaches, [ Move; Capture ])]
+    | (_, Bishop) -> [(bishopReaches, [ Move; Capture ])]
+    | (_, Rook  ) -> [(rookReaches  , [ Move; Capture ])]
+    | (_, Queen ) -> [(queenReaches , [ Move; Capture ])]
+    | (_, King  ) -> [(kingReaches  , [ Move; Capture ])]
 
-let sameColor (cell1: CellState) (cell2: CellState) =
-    fst (fst cell1) = fst (fst cell2)
+let color (cell: CellState) = cell |> fst |> fst
+
+let piece (cell: CellState) = cell |> fst
+
+let position (cell: CellState) = cell |> snd
+
+let sameColor cell1 cell2 =
+    color cell1 = color cell2
+
+let takeWhilePlusOne predicate (s:seq<_>) = 
+    /// Iterates over the enumerator, yielding elements and
+    /// stops after an element for which the predicate does not hold
+    let rec loop (en:System.Collections.Generic.IEnumerator<_>) = seq {
+        if en.MoveNext() then
+            // Always yield the current, stop if predicate does not hold
+            yield en.Current
+            if predicate en.Current then
+                yield! loop en }
+
+    // Get enumerator of the sequence and yield all results
+    // (making sure that the enumerator gets disposed)
+    seq { use en = s.GetEnumerator()
+        yield! loop en }
+
+module Option =
+    let invert opt def =
+        match opt with
+        | Some _ -> None
+        | None -> Some def
 
 let evaluateSquareAction game target cellToMove action =
-    let targetCell = at game target
+    let targetCell = game @ target
     let filteredTarget =
         match action with
-        | Move ->
-            match targetCell with
-            | Some _ -> None
-            | None -> Some target
+        | Move -> Option.invert targetCell target
         | Capture ->
             targetCell
-            |> Option.filter (sameColor cellToMove) 
+            |> Option.filter (not << sameColor cellToMove) 
             |> Option.map (fun _ -> target)
-        | EnPassant -> None
+        | EnPassant -> Option.invert targetCell target
     filteredTarget |> Option.map (fun tgt -> (action, tgt))
+
+let reachBreak = function
+    | Some (Move, _) -> true
+    | _ -> false
 
 let evaluateSquare game actionsToAnalyze cellToMove target =
     actionsToAnalyze
     |> List.map (evaluateSquareAction game target cellToMove)
-    |> List.choose id
-    |> List.tryHead
+    |> Seq.choose id
+    |> Seq.tryHead
 
-let extensionCapabilities game cellToMove actionsToAnalyze targets =
-    targets
+let reachesCapabilities game cellToMove actionsToAnalyze reach =
+    reach
     |> Seq.map (evaluateSquare game actionsToAnalyze cellToMove)
+    |> takeWhilePlusOne reachBreak
     |> Seq.choose id
     |> Seq.toList
 
-let extensionListCapabilities (game: GameState) cellToMove (extfn, actionsToAnalyze) =
-    let extensions: seq<Position> list = extfn (snd cellToMove)
-    extensions
-    |> List.collect (extensionCapabilities game cellToMove actionsToAnalyze)
-
-
-let colouredChessmanCapabilities (game: GameState) (cellToMove: CellState) =
+let reachesListCapabilities (game: GameState) (cellToMove: CellState) (reachGenerator, actionsToAnalyze) =
     cellToMove
-    |> fst
-    |> colouredChessmanExtensions
-    |> List.collect (extensionListCapabilities game cellToMove)
+    |> position
+    |> reachGenerator
+    |> Seq.collect (reachesCapabilities game cellToMove actionsToAnalyze)
+
+let pieceCapabilities game cellToMove =
+    cellToMove
+    |> piece
+    |> pieceReaches
+    |> Seq.collect (reachesListCapabilities game cellToMove)
+    |> Seq.map (fun (action, pos) -> (cellToMove, action, pos))
+    |> Seq.toList
+
+let isCheck game = false
+
+let execute game ((piece, sourcePos): CellState) (targetPos: Position) =
+    (piece, targetPos) :: (game |> List.filter (fun x -> position x = sourcePos) |> List.filter (fun x -> position x = targetPos))
+
+let defaultArg2 def opt = defaultArg opt def
 
 let capabilities game pos =
-    let cellToMove = at game pos
-    cellToMove
-    |> Option.map (colouredChessmanCapabilities game)
+    game @ pos
+    |> Option.map (pieceCapabilities game)
+    |> defaultArg2 []
+    |> List.filter (fun (cs, act, p) -> isCheck (execute game cs p))
 
 
 let positionToString (r, f) =
     sprintf "%A%i" r (fileToInt f)
 
-
 let printPositions (l: Position list) =
     l |> List.map positionToString |> List.iter (printf "%A")
 
-printfn "%A" (capabilities game1 (A, F1))
+// TESTING
+
+let game1: GameState = [
+    ((White, Bishop), (A, F1))
+]
+
+let game2: GameState = [
+    ((White, Bishop), (A, F1))
+    ((White, Knight), (C, F3))
+]
+
+capabilities game2 (A, F1)
