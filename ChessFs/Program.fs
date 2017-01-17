@@ -82,14 +82,8 @@ let DownLeft : Movement = move prevRank prevFile
 let Left     : Movement = move sameRank prevFile
 let UpLeft   : Movement = move nextRank prevFile
 
-let extend moveFn pos =
-    let mov2 pos =
-        let next = moveFn pos
-        match next with
-        | Some x -> Some (x, x)
-        | None -> None
-
-    Seq.unfold mov2 pos
+let extend (moveFn: Movement) =
+    moveFn >> Option.map (fun x -> (x, x)) |> Seq.unfold
 
 let Listapply arg fnseq = fnseq |> List.map (fun fn -> fn arg)
 
@@ -208,7 +202,9 @@ let evaluateSquareAction game target cellToMove action =
     let filteredTarget =
         match action with
         | Move ->
-            targetCell |> Option.map (fun _ -> target)
+            match targetCell with
+            | Some _ -> None
+            | None -> Some target
         | Capture ->
             targetCell
             |> Option.filter (sameColor cellToMove) 
@@ -220,11 +216,12 @@ let evaluateSquare game actionsToAnalyze cellToMove target =
     actionsToAnalyze
     |> List.map (evaluateSquareAction game target cellToMove)
     |> List.choose id
-    |> List.take 1
+    |> List.tryHead
 
 let extensionCapabilities game cellToMove actionsToAnalyze targets =
     targets
     |> Seq.map (evaluateSquare game actionsToAnalyze cellToMove)
+    |> Seq.choose id
     |> Seq.toList
 
 let extensionListCapabilities (game: GameState) cellToMove (extfn, actionsToAnalyze) =
@@ -234,12 +231,6 @@ let extensionListCapabilities (game: GameState) cellToMove (extfn, actionsToAnal
 
 
 let colouredChessmanCapabilities (game: GameState) (cellToMove: CellState) =
-    let fn = extensionListCapabilities game cellToMove
-    let test =
-        cellToMove
-        |> fst
-        |> colouredChessmanExtensions
-
     cellToMove
     |> fst
     |> colouredChessmanExtensions
@@ -247,20 +238,15 @@ let colouredChessmanCapabilities (game: GameState) (cellToMove: CellState) =
 
 let capabilities game pos =
     let cellToMove = at game pos
-    
     cellToMove
     |> Option.map (colouredChessmanCapabilities game)
-
-
 
 
 let positionToString (r, f) =
     sprintf "%A%i" r (fileToInt f)
 
 
+let printPositions (l: Position list) =
+    l |> List.map positionToString |> List.iter (printf "%A")
+
 printfn "%A" (capabilities game1 (A, F1))
-
-
-let main argv = 
-    printfn "%A" (capabilities game1 (A, F1))
-    0 // return an integer exit code
