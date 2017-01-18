@@ -74,28 +74,28 @@ with
         | R8 -> "8"
     static member fromInt i =
         match i with
-        | 0 -> R1
-        | 1 -> R2
-        | 2 -> R3
-        | 3 -> R4
-        | 4 -> R5
-        | 5 -> R6
-        | 6 -> R7
-        | 7 -> R8
+        | 7 -> R1
+        | 6 -> R2
+        | 5 -> R3
+        | 4 -> R4
+        | 3 -> R5
+        | 2 -> R6
+        | 1 -> R7
+        | 0 -> R8
         | _ -> failwith "Invalid rank index"
 
 type File = A | B | C | D | E | F | G | H
 with
     static member fromInt i =
         match i with
-        | 7 -> A
-        | 6 -> B
-        | 5 -> C
-        | 4 -> D
-        | 3 -> E
-        | 2 -> F
-        | 1 -> G
-        | 0 -> H
+        | 0 -> A
+        | 1 -> B
+        | 2 -> C
+        | 3 -> D
+        | 4 -> E
+        | 5 -> F
+        | 6 -> G
+        | 7 -> H
         | _ -> failwith "Invalid file index"
 
 let nextRank = function
@@ -433,9 +433,9 @@ let board game =
 
 init
 |> moveAndReplace ((White, Pawn), (E, R2)) (E, R4)
-|> moveAndReplace ((Black, Pawn), (D, R7)) (E, R5)
-|> board
-
+|> moveAndReplace ((Black, Pawn), (D, R7)) (D, R5)
+|> List.map (fun cell -> (cell, capabilities init (position cell)))
+|> Seq.toList
 
 //|> List.map (fun cell -> (cell, capabilities init (position cell)))
 //|> Seq.toList
