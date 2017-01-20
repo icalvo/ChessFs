@@ -1,11 +1,11 @@
 ﻿// UTILS
-
 module Option =
-    let invert opt def =
-        match opt with
-        | Some _ -> None
-        | None -> Some def
+    let defaultTo defValue opt = defaultArg opt defValue
     let pipe action = Option.map (fun x -> action x; x)
+    let mapList fn opt =
+        opt
+        |> Option.map fn 
+        |> defaultTo []
 
 module Seq =
     let pipe action = Seq.map (fun x -> action x; x)
@@ -238,23 +238,47 @@ let pawnEnPassantReach (rankForEnPassant: Rank) moveFn (pos: Position) =
 
 
 [<StructuredFormatDisplay("{toString}")>]
-type Colour = Black | White with
+type Color = Black | White with
     member this.toString =
         match this with
         | Black -> "b"
         | White -> "w"
 
-type Piece = Colour * Chessman
+type Piece = Piece of Color * Chessman
 
-type CellState = Piece * Position
+type CellState = 
+    | Cell of Piece * Position
+    | Empty of Position
 
-type GameState = CellState list
+let cell color chessman pos = (Piece (color, chessman), pos)
 
-let at (pos: Position) (game: GameState): CellState option =
-    List.tryFind (fun (_, p) -> p = pos) game
+let isEmpty = function
+    | Empty _ -> true
+    | _ -> false
 
-let (@) (game: GameState) (pos: Position): CellState option =
-    List.tryFind (fun (_, p) -> p = pos) game
+type GameState = (Piece * Position) list
+
+let color = function
+    | Cell (Piece (col, _), _) -> Some col
+    | _ -> None
+
+let fcolor (Piece (color, _), _) = color
+
+let piece = function
+    | Cell (piece, _) -> Some piece
+    | _ -> None
+
+let position = function
+    | Cell (_, pos) -> pos
+    | Empty pos -> pos
+
+let at pos game =
+    game
+    |> List.map Cell
+    |> List.tryFind (fun cell -> position cell = pos)
+    |> defaultArg <| Empty pos
+
+let (@) game pos = at pos game
 
 type Action =
     | Move
@@ -262,62 +286,57 @@ type Action =
     | EnPassant
 
 let pieceReachesGenerators = function
-    | (White, Pawn) ->
+    | Piece (White, Pawn) ->
         [
             (pawnMoveReaches    R2 Up, [ Move      ]);
             (pawnCaptureReaches    Up, [ Capture   ]);
             (pawnEnPassantReach R5 Up, [ EnPassant ])
         ]
-    | (Black, Pawn) ->
+    | Piece (Black, Pawn) ->
         [
             (pawnMoveReaches R7 Down,    [ Move      ]);
             (pawnCaptureReaches Down,    [ Capture   ]);
             (pawnEnPassantReach R4 Down, [ EnPassant ])
         ]
-    | (_, Knight) -> [(knightReaches, [ Move; Capture ])]
-    | (_, Bishop) -> [(bishopReaches, [ Move; Capture ])]
-    | (_, Rook  ) -> [(rookReaches  , [ Move; Capture ])]
-    | (_, Queen ) -> [(queenReaches , [ Move; Capture ])]
-    | (_, King  ) -> [(kingReaches  , [ Move; Capture ])]
-
-let color (cell: CellState) = cell |> fst |> fst
-
-let piece (cell: CellState) = cell |> fst
-
-let position (cell: CellState) = cell |> snd
+    | Piece (_, Knight) -> [(knightReaches, [ Move; Capture ])]
+    | Piece (_, Bishop) -> [(bishopReaches, [ Move; Capture ])]
+    | Piece (_, Rook  ) -> [(rookReaches  , [ Move; Capture ])]
+    | Piece (_, Queen ) -> [(queenReaches , [ Move; Capture ])]
+    | Piece (_, King  ) -> [(kingReaches  , [ Move; Capture ])]
 
 let sameColor cell1 cell2 =
     color cell1 = color cell2
 
-let ff cellToMove target targetCell =
-    function
-    | Move -> Option.invert targetCell target
+let evaluateSquareAction game targetPos sourceCell action =
+    let targetCell = game @ targetPos
+    match action with
+    | Move ->
+        targetCell |> isEmpty
     | Capture ->
-        targetCell
-        |> Option.filter (not << sameColor cellToMove) 
-        |> Option.map (fun _ -> target)
-    | EnPassant -> Option.invert targetCell target
+        targetCell |> (not << sameColor sourceCell) &&
+        targetCell |> (not << isEmpty)
+    | EnPassant ->
+        isEmpty targetCell
 
-let evaluateSquareAction game target cellToMove action =
-    let targetCell = game @ target
-    ff cellToMove target targetCell action
-    |> Option.map (fun tgt -> (action, tgt))
-
-let reachIsBlocked = function
-    | Some (Move, _) -> true
+let is x = function
+    | x -> true
     | _ -> false
 
-let evaluateSquare game actionsToAnalyze cellToMove target =
+let reachIsBlocked = function
+    | Some Move -> true
+    | _ -> false
+
+let evaluateSquare game actionsToAnalyze sourceCell targetPos =
     actionsToAnalyze
-    |> List.map (evaluateSquareAction game target cellToMove)
-    |> Seq.choose id
+    |> Seq.filter (evaluateSquareAction game targetPos sourceCell)
+    |> Seq.map (fun action -> (action, targetPos))
     |> Seq.tryHead
 
-let reachCapabilities game cellToMove actionsToAnalyze reach =
+let reachCapabilities game sourceCell actionsToAnalyze reach =
     reach
-    |> Seq.map (evaluateSquare game actionsToAnalyze cellToMove)
-    |> Seq.takeWhilePlusOne reachIsBlocked
-    |> Seq.choose id
+    |> Seq.map (evaluateSquare game actionsToAnalyze sourceCell)
+    |> Seq.takeWhilePlusOne (is (Some Move))
+    |> Seq.filterNones
 
 let reachesCapabilities (game: GameState) (cellToMove: CellState) (reachesGenerator, actionsToAnalyze) =
     cellToMove
@@ -328,7 +347,8 @@ let reachesCapabilities (game: GameState) (cellToMove: CellState) (reachesGenera
 let pieceCapabilities game cellToMove =
     cellToMove
     |> piece
-    |> pieceReachesGenerators
+    |> Option.map pieceReachesGenerators
+    |> defaultArg <| []
     |> Seq.collect (reachesCapabilities game cellToMove)
 
 /// <summary>Determines the attacks a piece of the game is making.</summary>
@@ -340,8 +360,8 @@ let attacksBy game cellState =
 /// <summary>Determines the attacks a piece of the game is making.</summary>
 let attacks col game = 
     game
-    |> List.toSeq
-    |> Seq.filter (fun cell -> color cell = col)
+    |> Seq.filter (fun cell -> fcolor cell = col)
+    |> Seq.map Cell
     |> Seq.collect (attacksBy game >> Seq.toList) 
 
 let isAttacked color game targetPosition =
@@ -349,26 +369,68 @@ let isAttacked color game targetPosition =
     |> attacks color
     |> Seq.contains targetPosition
     
-let defaultArg2 def opt = defaultArg opt def
-
 let isCheck color game =
     game
-    |> List.tryFind (fun x -> piece x = (color, King))
-    |> Option.map position
+    |> Seq.tryFind (fun (piece, pos) -> piece = Piece (color, King))
+    |> Option.map (fun (piece, pos) -> pos)
     |> Option.map (isAttacked color game)
-    |> defaultArg2 false
+    |> defaultArg <| false
 
-let moveAndReplace ((piece, sourcePos): CellState) (targetPos: Position) game =
-    (piece, targetPos) :: (game |> List.filter (fun x -> position x <> sourcePos && position x <> targetPos))
+let moveAndReplace sourcePos (targetPos: Position) game =
+    match game @ sourcePos with
+    | Empty _ -> List.empty
+    | Cell (piece, _) -> (piece, targetPos) :: (game |> List.filter (fun (_, position) -> position <> sourcePos && position <> targetPos))
 
 let capabilities game pos =
-    game @ pos
-    |> Option.map (fun cell ->
-        cell
+    match game @ pos with
+    | Empty _ -> Seq.empty
+    | Cell (piece, sourcePos) as cellState ->
+        let capabilitiesFilter2 (_, targetPos) =
+            game
+            |> moveAndReplace pos targetPos
+            |> (not << isCheck (fcolor (piece, sourcePos)))
+        cellState
         |> pieceCapabilities game
         |> Seq.debug "capabilityBeforeCheckTest"
-        |> Seq.filter (fun (act, p) -> (moveAndReplace cell p game) |> (not << isCheck (color cell))))
-    |> Option.toList
+        |> Seq.filter capabilitiesFilter2
+
+
+let init: GameState = [
+    cell White Rook   (A, R1)
+    cell White Knight (B, R1)
+    cell White Bishop (C, R1)
+    cell White Queen  (D, R1)
+    cell White King   (E, R1)
+    cell White Bishop (F, R1)
+    cell White Knight (G, R1)
+    cell White Rook   (H, R1)
+    cell White Pawn   (A, R2)
+    cell White Pawn   (B, R2)
+    cell White Pawn   (C, R2)
+    cell White Pawn   (D, R2)
+    cell White Pawn   (E, R2)
+    cell White Pawn   (F, R2)
+    cell White Pawn   (G, R2)
+    cell White Pawn   (H, R2)
+    cell Black Pawn   (A, R7)
+    cell Black Pawn   (B, R7)
+    cell Black Pawn   (C, R7)
+    cell Black Pawn   (D, R7)
+    cell Black Pawn   (E, R7)
+    cell Black Pawn   (F, R7)
+    cell Black Pawn   (G, R7)
+    cell Black Pawn   (H, R7)
+    cell Black Rook   (A, R8)
+    cell Black Knight (B, R8)
+    cell Black Bishop (C, R8)
+    cell Black Queen  (D, R8)
+    cell Black King   (E, R8)
+    cell Black Bishop (F, R8)
+    cell Black Knight (G, R8)
+    cell Black Rook   (H, R8)
+]
+
+// OUTPUT
 
 let positionToString ((f, r):Position) =
     sprintf "%A%A" f r
@@ -376,66 +438,74 @@ let positionToString ((f, r):Position) =
 let printPositions =
     List.map positionToString >> List.iter (printf "%A")
 
+let cellStateToString = function
+    | Empty _ -> "  "
+    | Cell (Piece (color, chessman), _) -> sprintf "%A%A" color chessman
+
+let toMatrix game =
+    Array2D.init 8  8 (fun r f ->
+        game @ (File.fromInt f, Rank.fromInt r)
+    )
+
+let board toString game =
+    let stringMatrix = toMatrix game |> Array2D.map toString
+
+    [|0..7|]
+    |> Array.map (fun i -> stringMatrix.[i, *])
+    |> Array.map (String.concat "|")
+
+let printBoard b = 
+    let printRow i x = printfn "%i|%s|%i" (8-i) x (8-i)
+    
+    let filesHeader =
+        [|"A"; "B"; "C"; "D"; "E"; "F"; "G"; "H"|]
+        |> Array.map (fun x -> x.PadLeft(4, ' '))
+        |> String.concat ""
+
+    printfn "%s" filesHeader
+    b |> Array.iteri printRow
+    printfn "%s" filesHeader
+
+let cellWithCaps capList cellState =
+    let capabilityAt pos = capList |> Seq.tryFind (fun (act, p) -> p = pos)
+
+    let actionToString = function
+        | Move -> "m"
+        | Capture -> "c"
+        | EnPassant -> "p"
+
+    let cellStateActionToString =
+        cellState
+        |> position
+        |> capabilityAt
+        |> Option.map fst
+        |> Option.map actionToString
+        |> defaultArg <| " "
+
+    (cellStateToString cellState) + cellStateActionToString
+
 // TESTING
 let game1: GameState = [
-    ((White, Bishop), (A, R1))
+    cell White Bishop (A, R1)
 ]
 
 let game2: GameState = [
-    ((White, Bishop), (A, R1))
-    ((White, Knight), (C, R3))
+    cell White Bishop (A, R1)
+    cell White Knight (C, R3)
 ]
 
-let init: GameState = [
-    ((White, Rook  ), (A, R1))
-    ((White, Knight), (B, R1))
-    ((White, Bishop), (C, R1))
-    ((White, Queen ), (D, R1))
-    ((White, King  ), (E, R1))
-    ((White, Bishop), (F, R1))
-    ((White, Knight), (G, R1))
-    ((White, Rook  ), (H, R1))
-    ((White, Pawn  ), (A, R2))
-    ((White, Pawn  ), (B, R2))
-    ((White, Pawn  ), (C, R2))
-    ((White, Pawn  ), (D, R2))
-    ((White, Pawn  ), (E, R2))
-    ((White, Pawn  ), (F, R2))
-    ((White, Pawn  ), (G, R2))
-    ((White, Pawn  ), (H, R2))
-    ((Black, Pawn  ), (A, R7))
-    ((Black, Pawn  ), (B, R7))
-    ((Black, Pawn  ), (C, R7))
-    ((Black, Pawn  ), (D, R7))
-    ((Black, Pawn  ), (E, R7))
-    ((Black, Pawn  ), (F, R7))
-    ((Black, Pawn  ), (G, R7))
-    ((Black, Pawn  ), (H, R7))
-    ((Black, Rook  ), (A, R8))
-    ((Black, Knight), (B, R8))
-    ((Black, Bishop), (C, R8))
-    ((Black, Queen ), (D, R8))
-    ((Black, King  ), (E, R8))
-    ((Black, Bishop), (F, R8))
-    ((Black, Knight), (G, R8))
-    ((Black, Rook  ), (H, R8))
-]
+let game3 = 
+    init
+    |> moveAndReplace (E, R2) (E, R4)
+    |> moveAndReplace (C, R8) (H, R3)
 
-let pieceToString (color, chessman) = sprintf "%A%A" color chessman
+game3 |> board cellStateToString |> printBoard
+game3 |> board (cellWithCaps (capabilities game3 (H, R3))) |> printBoard
 
-let board game =
-    Array2D.init 8  8 (fun r f ->
-        game
-        |> at (File.fromInt f, Rank.fromInt r)
-        |> Option.map piece
-        |> Option.map pieceToString
-        |> defaultArg2 "  ")
-
-init
-|> moveAndReplace ((White, Pawn), (E, R2)) (E, R4)
-|> moveAndReplace ((Black, Pawn), (D, R7)) (D, R5)
-|> List.map (fun cell -> (cell, capabilities init (position cell)))
+game3
+|> List.map (fun (piece, pos) -> ((piece, pos), capabilities game3 pos))
 |> Seq.toList
+|> ignore
 
 //|> List.map (fun cell -> (cell, capabilities init (position cell)))
 //|> Seq.toList
