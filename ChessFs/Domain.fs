@@ -19,6 +19,17 @@ type Rank =
     | R6
     | R7
     | R8
+    static member fromInt i =
+        match i with
+        | 7 -> R1
+        | 6 -> R2
+        | 5 -> R3
+        | 4 -> R4
+        | 3 -> R5
+        | 2 -> R6
+        | 1 -> R7
+        | 0 -> R8
+        | _ -> failwith "Invalid rank index"
 
 type File = A | B | C | D | E | F | G | H
 with
@@ -324,21 +335,31 @@ type Player = Color
 
 type DisplayInfo = CellState[,]
 
-type MoveCapability = unit -> MoveResult
+type PlayerAction =
+    | MovePiece of Position * Position
+    | Abandon
 
-and MoveResult =
+/// <summary>
+/// Possible results of a player action result.
+/// </summary>
+type PlayerActionResult =
     | PlayerWhiteToMove of DisplayInfo * NextMoveInfo list
     | PlayerBlackToMove of DisplayInfo * NextMoveInfo list
     | WonByCheckMate of DisplayInfo * Player
     | WonByAbandon of DisplayInfo * Player
     | Draw of DisplayInfo * Player
 
+/// <summary>
+/// Information about one possible movement. It includes
+/// the source and target position, and a function that, when
+/// called, will return the result of the movement (a MoveResult).
+/// </summary>
 and NextMoveInfo = {
-    movement: Position * Position
-    capability: MoveCapability
+    movement: PlayerAction
+    capability: unit -> PlayerActionResult
 }
 
-let otherPlayer = function
+let opponent = function
     | White -> Black
     | Black -> White
 
@@ -347,53 +368,60 @@ let getDisplayInfo game =
         game @ (File.fromInt f, Rank.fromInt r)
     )
 
+let private isCheckMateTo player gameState =
+    // TODO:
+    // let (<&>) f g = (fun x -> f x && g x)
+    // isCheck <&> capabilities 
+    false
 
-// return the move result case for a player 
+let private isGameTied player gameState = false
+
+let private remainingMoves gameState: PlayerAction list = []
+
+/// <summary>Return the move result case for a player.</summary>
 let moveResultFor player displayInfo nextMoves = 
     match player with
     | White -> PlayerWhiteToMove (displayInfo, nextMoves)
     | Black -> PlayerBlackToMove (displayInfo, nextMoves)
 
-// given a function, a player & a gameState & a position,
-// create a NextMoveInfo with the capability to call the function
-let makeNextMoveInfo f player gameState cellPos =
-    // the capability has the player & cellPos & gameState baked in
-    let capability() = f player cellPos gameState 
-    {movement=cellPos; capability=capability}
-
+let rec f x = x
 // given a function, a player & a gameState & a list of positions,
 // create a list of NextMoveInfos wrapped in a MoveResult
-let makeMoveResultWithCapabilities f player gameState cellPosList =
+and makePlayerActionResultWithCapabilities player gameState cellPosList =
     let displayInfo = getDisplayInfo gameState
     cellPosList
-    |> List.map (makeNextMoveInfo f player gameState)
+    |> List.map (makeNextMoveInfo player gameState)
     |> moveResultFor player displayInfo 
 
-let private isCheckMateTo player gameState = false
-
-let private isGameTied player gameState = false
-
-let private remainingMoves gameState: (Position * Position) list = []
+and makeNextMoveInfo player gameState cellPos =
+    // the capability has the player & cellPos & gameState baked in
+    let capability() = playerMove player cellPos gameState 
+    { movement = cellPos; capability = capability }
 
 // player makes a move
-let rec playerMove player rawMovement gameState: MoveResult = 
-    let newGameState = gameState |> moveAndReplace rawMovement
-    let displayInfo = getDisplayInfo newGameState 
+and playerMove player playerAction gameState: PlayerActionResult =
+    match playerAction with
+    | MovePiece (s, t) ->
+        let newGameState = gameState |> moveAndReplace (s, t)
+        let displayInfo = getDisplayInfo newGameState 
 
-    if newGameState |> isCheckMateTo player then
-        // return the move result
-        WonByCheckMate (displayInfo, player)
-    // TODO: Tie and abandonment
-    else
-        let otherPlayer = otherPlayer player 
-        let moveResult = 
-            newGameState 
-            |> remainingMoves
-            |> makeMoveResultWithCapabilities playerMove otherPlayer newGameState
-        moveResult 
+        if newGameState |> isCheckMateTo player then
+            // return the move result
+            WonByCheckMate (displayInfo, player)
+        // TODO: Tie and abandonment
+        else
+            let otherPlayer = opponent player 
+            let moveResult = 
+                newGameState 
+                |> remainingMoves
+                |> makePlayerActionResultWithCapabilities otherPlayer newGameState
+            moveResult
+    | Abandon ->
+        let displayInfo = getDisplayInfo gameState
+        WonByAbandon (displayInfo, (opponent player))
 
 let newGame() =
-    let gamestate = [
+    let initialCells = [
         cell White Rook   (A, R1)
         cell White Knight (B, R1)
         cell White Bishop (C, R1)
@@ -428,5 +456,6 @@ let newGame() =
         cell Black Rook   (H, R8)
     ]
 
-    allPositions 
-            |> makeMoveResultWithCapabilities playerMove White gameState
+    let gamestate = initialCells
+
+    makePlayerActionResultWithCapabilities White gamestate []

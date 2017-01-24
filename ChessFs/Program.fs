@@ -116,7 +116,7 @@ let rec gameLoop userAction =
             gameLoop nextUserAction
         | WonByAbandon (displayInfo, player) -> 
             displayInfo |> displayCells
-            printfn "GAME WON becase %A abandoned" (otherPlayer player)
+            printfn "GAME WON because %A abandoned" (opponent player)
             printfn ""
             let nextUserAction = askToPlayAgain 1
             gameLoop nextUserAction
@@ -128,7 +128,7 @@ let rec gameLoop userAction =
             gameLoop nextUserAction
         | PlayerWhiteToMove (displayInfo, nextMoves) -> 
             displayInfo |> displayCells
-            printfn "White to move" 
+            printfn "White to move"
             displayNextMoves nextMoves
             let newResult = processInput nextMoves
             gameLoop newResult 

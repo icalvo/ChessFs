@@ -27,17 +27,6 @@ with
         | R6 -> "6"
         | R7 -> "7"
         | R8 -> "8"
-    static member fromInt i =
-        match i with
-        | 7 -> R1
-        | 6 -> R2
-        | 5 -> R3
-        | 4 -> R4
-        | 3 -> R5
-        | 2 -> R6
-        | 1 -> R7
-        | 0 -> R8
-        | _ -> failwith "Invalid rank index"
 
 [<StructuredFormatDisplay("{toString}")>]
 type Color with
