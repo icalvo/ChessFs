@@ -196,9 +196,7 @@ let isEmpty = function
 let color = function
     | Cell (Piece (col, _), _) -> Some col
     | _ -> None
-
-let fcolor (Piece (color, _), _) = color
-
+    
 let piece = function
     | Cell (piece, _) -> Some piece
     | _ -> None
@@ -220,6 +218,10 @@ type Action =
     | Capture
     | EnPassant
 
+type PlayerAction =
+    | MovePiece of Piece * Position * Action * Position
+    | Abandon
+
 let pieceReachesGenerators = function
     | Piece (White, Pawn) ->
         [
@@ -239,76 +241,66 @@ let pieceReachesGenerators = function
     | Piece (_, Queen ) -> [(queenReaches , [ Move; Capture ])]
     | Piece (_, King  ) -> [(kingReaches  , [ Move; Capture ])]
 
-let sameColor cell1 cell2 =
-    color cell1 = color cell2
+let sameColor (Piece (sourceColor, chessman)) cell2 =
+    match color cell2 with
+    | Some col -> col = sourceColor
+    | None -> false
 
-let evaluateSquareAction game targetPos sourceCell action =
+let evaluateSquareAction game targetPos (piece, sourcePos) action =
     let targetCell = game @ targetPos
     match action with
     | Move ->
         targetCell |> isEmpty
     | Capture ->
-        targetCell |> (not << sameColor sourceCell) &&
+        targetCell |> (not << sameColor piece) &&
         targetCell |> (not << isEmpty)
     | EnPassant ->
         isEmpty targetCell
 
 let reachIsOpen = function
-    | Some (Move, _) -> true
+    | Some (_, _, Move, _) -> true
     | _ -> false
 
-let evaluateSquare game actionsToAnalyze sourceCell targetPos =
+let evaluateSquare game actionsToAnalyze (piece, sourcePos) targetPos =
     actionsToAnalyze
-    |> Seq.filter (evaluateSquareAction game targetPos sourceCell)
-    |> Seq.map (fun action -> (action, targetPos))
+    |> Seq.filter (evaluateSquareAction game targetPos (piece, sourcePos))
+    |> Seq.map (fun action -> (piece, sourcePos, action, targetPos))
     |> Seq.tryHead
 
-let reachCapabilities game sourceCell actionsToAnalyze reach =
+let reachCapabilities game (piece, sourcePos) actionsToAnalyze reach =
     reach
-    |> Seq.map (evaluateSquare game actionsToAnalyze sourceCell)
+    |> Seq.map (evaluateSquare game actionsToAnalyze (piece, sourcePos))
     |> Seq.takeWhilePlusOne reachIsOpen
     |> Seq.filterNones
 
-
 type GameState = (Piece * Position) list
 
-let reachesCapabilities (game: GameState) (cellToMove: CellState) (reachesGenerator, actionsToAnalyze) =
-    cellToMove
-    |> position
+let reachesCapabilities (game: GameState) (piece, sourcePos) (reachesGenerator, actionsToAnalyze) =
+    sourcePos
     |> reachesGenerator
-    |> Seq.collect (reachCapabilities game cellToMove actionsToAnalyze)
+    |> Seq.collect (reachCapabilities game (piece, sourcePos) actionsToAnalyze)
 
-let pieceCapabilities game cellToMove =
-    cellToMove
-    |> piece
-    |> Option.map pieceReachesGenerators
-    |> defaultArg <| []
-    |> Seq.collect (reachesCapabilities game cellToMove)
+let uncheckedPieceCapabilities game (piece, sourcePos) =
+    piece
+    |> pieceReachesGenerators
+    |> Seq.collect (reachesCapabilities game (piece, sourcePos))
 
 /// <summary>Determines the attacks a piece of the game is making.</summary>
 let attacksBy game cellState =
-    pieceCapabilities game cellState
-    |> Seq.filter (fun (action, pos) -> action = Capture)
-    |> Seq.map snd
+    uncheckedPieceCapabilities game cellState
+    |> Seq.filter (fun (_, _, action, _) -> action = Capture)
+    |> Seq.map (fun (_, _, _, pos) -> pos)
 
 /// <summary>Determines the attacks a piece of the game is making.</summary>
 let attacks col game = 
     game
-    |> Seq.filter (fun cell -> fcolor cell = col)
-    |> Seq.map Cell
-    |> Seq.collect (attacksBy game >> Seq.toList) 
+    |> Seq.filter (fun (Piece (pieceColor, _), _) -> pieceColor = col)
+    |> Seq.collect (attacksBy game)
 
 let isAttacked color game targetPosition =
     game
     |> attacks color
     |> Seq.contains targetPosition
-    
-let isCheck color game =
-    game
-    |> Seq.tryFind (fun (piece, pos) -> piece = Piece (color, King))
-    |> Option.map (fun (piece, pos) -> pos)
-    |> Option.map (isAttacked color game)
-    |> defaultArg <| false
 
 /// <summary>Basic move operation. It simply empties the source cell and sets the target cell with the
 /// same the source had before.</summary>
@@ -317,27 +309,33 @@ let moveAndReplace (sourcePos, targetPos) game =
     | Empty _ -> game |> List.filter (fun (_, position) -> position <> targetPos)
     | Cell (piece, _) -> (piece, targetPos) :: (game |> List.filter (fun (_, position) -> position <> sourcePos && position <> targetPos))
 
-let capabilities game pos =
-    match game @ pos with
-    | Empty _ -> Seq.empty
-    | Cell (piece, sourcePos) as cellState ->
-        let capabilitiesFilter2 (_, targetPos) =
-            game
-            |> moveAndReplace (pos, targetPos)
-            |> (not << isCheck (fcolor (piece, sourcePos)))
-        cellState
-        |> pieceCapabilities game
-        |> Seq.debug "capabilityBeforeCheckTest"
-        |> Seq.filter capabilitiesFilter2
 
+let isCheck color game =
+    game
+    |> Seq.tryFind (fun (piece, pos) -> piece = Piece (color, King))
+    |> Option.map (fun (piece, pos) -> pos)
+    |> Option.map (isAttacked color game)
+    |> defaultArg <| false
+
+let pieceCapabilities game (piece, sourcePos) =
+    let checkFilter (Piece (color, _), _, _, targetPos) =
+        game
+        |> moveAndReplace (sourcePos, targetPos)
+        |> (not << isCheck color)
+
+    uncheckedPieceCapabilities game (piece, sourcePos)
+    |> Seq.filter checkFilter
+
+let capabilities game sourcePos =
+    match game @ sourcePos with
+    | Empty _ -> Seq.empty
+    | Cell (piece, _) ->
+        (piece, sourcePos)
+        |> pieceCapabilities game
 
 type Player = Color
 
 type DisplayInfo = CellState[,]
-
-type PlayerAction =
-    | MovePiece of Position * Position
-    | Abandon
 
 /// <summary>
 /// Possible results of a player action result.
@@ -385,24 +383,35 @@ let moveResultFor player displayInfo nextMoves =
     | Black -> PlayerBlackToMove (displayInfo, nextMoves)
 
 let rec f x = x
-// given a function, a player & a gameState & a list of positions,
-// create a list of NextMoveInfos wrapped in a MoveResult
-and makePlayerActionResultWithCapabilities player gameState cellPosList =
+// given a player & a gameState, it returns a move result for that player.
+and makePlayerMoveResultWithCapabilities player gameState =
     let displayInfo = getDisplayInfo gameState
-    cellPosList
-    |> List.map (makeNextMoveInfo player gameState)
-    |> moveResultFor player displayInfo 
 
-and makeNextMoveInfo player gameState cellPos =
+    let getCapabilities (sourcePiece, sourcePos) =
+        pieceCapabilities gameState (sourcePiece, sourcePos)
+        |> Seq.map MovePiece
+
+    let belongsToPlayer (Piece (color, _), _) = color = player
+
+    let playerMovementCapabilities =
+        gameState
+        |> Seq.filter belongsToPlayer
+        |> Seq.collect getCapabilities
+        |> Seq.map (makeNextMoveInfo player gameState)
+        |> Seq.toList
+
+    moveResultFor player displayInfo playerMovementCapabilities
+
+and makeNextMoveInfo player gameState playerAction =
     // the capability has the player & cellPos & gameState baked in
-    let capability() = playerMove player cellPos gameState 
-    { movement = cellPos; capability = capability }
+    let capability() = executePlayerAction player gameState playerAction
+    { movement = playerAction; capability = capability }
 
 // player makes a move
-and playerMove player playerAction gameState: PlayerActionResult =
+and executePlayerAction player gameState playerAction: PlayerActionResult =
     match playerAction with
-    | MovePiece (s, t) ->
-        let newGameState = gameState |> moveAndReplace (s, t)
+    | MovePiece (_, spos, _, tpos) ->
+        let newGameState = gameState |> moveAndReplace (spos, tpos)
         let displayInfo = getDisplayInfo newGameState 
 
         if newGameState |> isCheckMateTo player then
@@ -410,12 +419,8 @@ and playerMove player playerAction gameState: PlayerActionResult =
             WonByCheckMate (displayInfo, player)
         // TODO: Tie and abandonment
         else
-            let otherPlayer = opponent player 
-            let moveResult = 
-                newGameState 
-                |> remainingMoves
-                |> makePlayerActionResultWithCapabilities otherPlayer newGameState
-            moveResult
+            let otherPlayer = opponent player
+            makePlayerMoveResultWithCapabilities otherPlayer newGameState
     | Abandon ->
         let displayInfo = getDisplayInfo gameState
         WonByAbandon (displayInfo, (opponent player))
@@ -456,6 +461,4 @@ let newGame() =
         cell Black Rook   (H, R8)
     ]
 
-    let gamestate = initialCells
-
-    makePlayerActionResultWithCapabilities White gamestate []
+    makePlayerMoveResultWithCapabilities White initialCells

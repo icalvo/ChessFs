@@ -1,3 +1,3 @@
 ﻿module Configuration
 
-let debug = false
+let debug = true

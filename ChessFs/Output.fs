@@ -2,7 +2,6 @@
 
 open Domain
 
-[<StructuredFormatDisplay("{toString}")>]
 type Chessman
 with
     member this.toString = 
@@ -14,7 +13,6 @@ with
         | Queen  -> "Q"
         | King   -> "K"
 
-[<StructuredFormatDisplay("{toString}")>]
 type Rank
 with
     member this.toString =
@@ -28,7 +26,19 @@ with
         | R7 -> "7"
         | R8 -> "8"
 
-[<StructuredFormatDisplay("{toString}")>]
+type File
+with
+    member this.toString =
+        match this with
+        | A -> "a"
+        | B -> "b"
+        | C -> "c"
+        | D -> "d"
+        | E -> "e"
+        | F -> "f"
+        | G -> "g"
+        | H -> "h"
+
 type Color with
     member this.toString =
         match this with
@@ -36,14 +46,14 @@ type Color with
         | White -> "w"
 
 let positionToString ((f, r):Position) =
-    sprintf "%A%A" f r
+    sprintf "%s%s" f.toString r.toString
 
 let printPositions =
     List.map positionToString >> List.iter (printf "%A")
 
 let cellStateToString = function
     | Empty _ -> "  "
-    | Cell (Piece (color, chessman), _) -> sprintf "%A%A" color chessman
+    | Cell (Piece (color, chessman), _) -> sprintf "%s%s" color.toString chessman.toString
 
 let board toString displayInfo =
     let stringMatrix = displayInfo |> Array2D.map toString
@@ -57,7 +67,7 @@ let printBoard b =
     
     let filesHeader =
         [|"A"; "B"; "C"; "D"; "E"; "F"; "G"; "H"|]
-        |> Array.map (fun x -> x.PadLeft(4, ' '))
+        |> Array.map (fun x -> x.PadLeft(3, ' '))
         |> String.concat ""
 
     printfn "%s" filesHeader
@@ -81,3 +91,21 @@ let cellWithCaps capList cellState =
         |> defaultArg <| " "
 
     (cellStateToString cellState) + cellStateActionToString
+
+let playerActionToString = function
+    | MovePiece (Piece (color, chessman), sourcePos, action, targetPos) ->
+        let targetPosString = positionToString targetPos
+        let sourceFile = (fst sourcePos)
+        match action with
+        | Move ->
+            match chessman with
+            | Pawn -> sprintf "%s" targetPosString
+            | _ -> sprintf "%s%s" chessman.toString targetPosString
+        | Capture ->
+            match chessman with
+            | Pawn ->
+                
+                sprintf "%sx%s" sourceFile.toString targetPosString
+            | _ -> sprintf "%sx%s" chessman.toString targetPosString
+        | EnPassant -> sprintf "%sx%s" sourceFile.toString targetPosString
+    | Abandon -> "Abandon"
