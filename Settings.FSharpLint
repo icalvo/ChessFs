@@ -1,0 +1,18 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<FSharpLintSettings xmlns="https://github.com/fsprojects/FSharpLint/blob/master/ConfigurationSchema.xsd">
+  <IgnoreFiles Update="Overwrite"><![CDATA[assemblyinfo.*]]></IgnoreFiles>
+  <Analysers>
+    <NestedStatements>
+      <Rules />
+      <Enabled>True</Enabled>
+    </NestedStatements>
+    <NumberOfItems>
+      <Rules />
+      <Enabled>True</Enabled>
+    </NumberOfItems>
+    <SourceLength>
+      <Rules />
+      <Enabled>True</Enabled>
+    </SourceLength>
+  </Analysers>
+</FSharpLintSettings>

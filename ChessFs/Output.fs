@@ -2,7 +2,7 @@
 
 open Domain
 
-type Chessman
+type Shape
 with
     member this.toString = 
         match this with
@@ -53,7 +53,7 @@ let printPositions =
 
 let cellStateToString = function
     | Empty _ -> "  "
-    | Cell (Piece (color, chessman), _) -> sprintf "%s%s" color.toString chessman.toString
+    | Cell (Piece (color, shape), _) -> sprintf "%s%s" color.toString shape.toString
 
 let board toString displayInfo =
     let stringMatrix = displayInfo |> Array2D.map toString
@@ -75,12 +75,14 @@ let printBoard b =
     printfn "%s" filesHeader
 
 let cellWithCaps capList cellState =
-    let capabilityAt pos = capList |> Seq.tryFind (fun (act, p) -> p = pos)
+    let capabilityAt pos = capList |> Seq.tryFind (fun (_, p) -> p = pos)
 
     let actionToString = function
         | Move -> "m"
-        | Capture -> "c"
+        | Capture -> "x"
         | EnPassant -> "p"
+        | CastleKingSide -> "k"
+        | CastleQueenSide -> "q"
 
     let cellStateActionToString =
         cellState
@@ -93,19 +95,21 @@ let cellWithCaps capList cellState =
     (cellStateToString cellState) + cellStateActionToString
 
 let playerActionToString = function
-    | MovePiece (Piece (color, chessman), sourcePos, action, targetPos) ->
+    | MovePiece (Piece (_, shape), sourcePos, action, targetPos) ->
         let targetPosString = positionToString targetPos
         let sourceFile = (fst sourcePos)
         match action with
         | Move ->
-            match chessman with
+            match shape with
             | Pawn -> sprintf "%s" targetPosString
-            | _ -> sprintf "%s%s" chessman.toString targetPosString
+            | _ -> sprintf "%s%s" shape.toString targetPosString
         | Capture ->
-            match chessman with
+            match shape with
             | Pawn ->
                 
                 sprintf "%sx%s" sourceFile.toString targetPosString
-            | _ -> sprintf "%sx%s" chessman.toString targetPosString
+            | _ -> sprintf "%sx%s" shape.toString targetPosString
         | EnPassant -> sprintf "%sx%s" sourceFile.toString targetPosString
+        | CastleKingSide -> "O-O"
+        | CastleQueenSide -> "O-O-O"
     | Abandon -> "Abandon"

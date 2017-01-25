@@ -2,7 +2,7 @@
 open Utils
 
 // CORE TYPES
-type Chessman =
+type Shape =
     | Pawn
     | Knight
     | Bishop
@@ -131,7 +131,6 @@ let kingReaches pos =
     |> List.map Seq.singleton
 
 let knightReaches pos =
-
     [
         Up >?> Left >?> Up;
         Up >?> Left >?> Left;
@@ -166,7 +165,7 @@ let pawnCaptureReaches moveFn pos =
     |> List.filterNones
     |> List.map Seq.singleton
 
-let pawnEnPassantReach (rankForEnPassant: Rank) moveFn (pos: Position) =
+let pawnEnPassantReach rankForEnPassant moveFn (pos: Position) =
     match pos with
     | (_, rank) when rank = rankForEnPassant ->
         [
@@ -179,15 +178,37 @@ let pawnEnPassantReach (rankForEnPassant: Rank) moveFn (pos: Position) =
     | _ -> []
 
 
+let kingCastleToKingReach (castlePosition: Position) moveFn (pos: Position) =
+    if pos = castlePosition then
+        [
+            moveFn >?> moveFn;
+        ]
+        |> List.apply pos
+        |> List.filterNones
+        |> List.map Seq.singleton
+    else
+        []
+
+let kingCastleToQueenReach (castlePosition: Position) moveFn (pos: Position) =
+    if pos = castlePosition then
+        [
+            moveFn >?> moveFn >?> moveFn;
+        ]
+        |> List.apply pos
+        |> List.filterNones
+        |> List.map Seq.singleton
+    else
+        []
+
 type Color = Black | White
 
-type Piece = Piece of Color * Chessman
+type Piece = Piece of Color * Shape
 
 type CellState = 
     | Cell of Piece * Position
     | Empty of Position
 
-let cell color chessman pos = (Piece (color, chessman), pos)
+let cell color shape pos = (Piece (color, shape), pos)
 
 let isEmpty = function
     | Empty _ -> true
@@ -217,6 +238,8 @@ type Action =
     | Move
     | Capture
     | EnPassant
+    | CastleKingSide
+    | CastleQueenSide
 
 type PlayerAction =
     | MovePiece of Piece * Position * Action * Position
@@ -239,15 +262,38 @@ let pieceReachesGenerators = function
     | Piece (_, Bishop) -> [(bishopReaches, [ Move; Capture ])]
     | Piece (_, Rook  ) -> [(rookReaches  , [ Move; Capture ])]
     | Piece (_, Queen ) -> [(queenReaches , [ Move; Capture ])]
-    | Piece (_, King  ) -> [(kingReaches  , [ Move; Capture ])]
+    | Piece (White, King  ) ->
+        [
+            (kingReaches                         , [ Move; Capture ]);
+            (kingCastleToKingReach  (E, R1) Right, [ CastleKingSide ]);
+            (kingCastleToQueenReach (E, R1) Left , [ CastleQueenSide ]);
+        ]
+    | Piece (Black, King  ) ->
+        [
+            (kingReaches                         , [ Move; Capture ]);
+            (kingCastleToKingReach  (E, R8) Left , [ CastleKingSide ]);
+            (kingCastleToQueenReach (E, R8) Right, [ CastleQueenSide ]);
+        ]
 
-let sameColor (Piece (sourceColor, chessman)) cell2 =
+let sameColor (Piece (sourceColor, _)) cell2 =
     match color cell2 with
     | Some col -> col = sourceColor
     | None -> false
+    
+type CastleStatus = {
+    kingHasMoved: bool
+    kingsRookHasMoved: bool
+    queensRookHasMoved: bool
+}
 
-let evaluateSquareAction game targetPos (piece, sourcePos) action =
-    let targetCell = game @ targetPos
+type GameState = {
+    whitePlayerCastleState: CastleStatus
+    blackPlayerCastleState: CastleStatus
+    pieces: (Piece * Position) list
+}
+
+let evaluateSquareAction (game:GameState) targetPos piece action =
+    let targetCell = game.pieces @ targetPos
     match action with
     | Move ->
         targetCell |> isEmpty
@@ -256,6 +302,10 @@ let evaluateSquareAction game targetPos (piece, sourcePos) action =
         targetCell |> (not << isEmpty)
     | EnPassant ->
         isEmpty targetCell
+    | CastleKingSide ->
+        false
+    | CastleQueenSide ->
+        false
 
 let reachIsOpen = function
     | Some (_, _, Move, _) -> true
@@ -263,7 +313,7 @@ let reachIsOpen = function
 
 let evaluateSquare game actionsToAnalyze (piece, sourcePos) targetPos =
     actionsToAnalyze
-    |> Seq.filter (evaluateSquareAction game targetPos (piece, sourcePos))
+    |> Seq.filter (evaluateSquareAction game targetPos piece)
     |> Seq.map (fun action -> (piece, sourcePos, action, targetPos))
     |> Seq.tryHead
 
@@ -272,8 +322,6 @@ let reachCapabilities game (piece, sourcePos) actionsToAnalyze reach =
     |> Seq.map (evaluateSquare game actionsToAnalyze (piece, sourcePos))
     |> Seq.takeWhilePlusOne reachIsOpen
     |> Seq.filterNones
-
-type GameState = (Piece * Position) list
 
 let reachesCapabilities (game: GameState) (piece, sourcePos) (reachesGenerator, actionsToAnalyze) =
     sourcePos
@@ -293,7 +341,7 @@ let attacksBy game cellState =
 
 /// <summary>Determines the attacks a piece of the game is making.</summary>
 let attacks col game = 
-    game
+    game.pieces
     |> Seq.filter (fun (Piece (pieceColor, _), _) -> pieceColor = col)
     |> Seq.collect (attacksBy game)
 
@@ -304,16 +352,18 @@ let isAttacked color game targetPosition =
 
 /// <summary>Basic move operation. It simply empties the source cell and sets the target cell with the
 /// same the source had before.</summary>
-let moveAndReplace (sourcePos, targetPos) game =
-    match game @ sourcePos with
-    | Empty _ -> game |> List.filter (fun (_, position) -> position <> targetPos)
-    | Cell (piece, _) -> (piece, targetPos) :: (game |> List.filter (fun (_, position) -> position <> sourcePos && position <> targetPos))
+let moveAndReplace (sourcePos, targetPos) (game : GameState) : GameState =
+    let newCells =
+        match game.pieces @ sourcePos with
+        | Empty _ -> game.pieces |> List.filter (fun (_, position) -> position <> targetPos)
+        | Cell (piece, _) -> (piece, targetPos) :: (game.pieces |> List.filter (fun (_, position) -> position <> sourcePos && position <> targetPos))
 
+    { game with pieces = newCells }
 
 let isCheck color game =
-    game
-    |> Seq.tryFind (fun (piece, pos) -> piece = Piece (color, King))
-    |> Option.map (fun (piece, pos) -> pos)
+    game.pieces
+    |> Seq.tryFind (fun (piece, _) -> piece = Piece (color, King))
+    |> Option.map (fun (_, pos) -> pos)
     |> Option.map (isAttacked color game)
     |> defaultArg <| false
 
@@ -327,13 +377,13 @@ let pieceCapabilities game (piece, sourcePos) =
     |> Seq.filter checkFilter
 
 let capabilities game sourcePos =
-    match game @ sourcePos with
+    match game.pieces @ sourcePos with
     | Empty _ -> Seq.empty
     | Cell (piece, _) ->
         (piece, sourcePos)
         |> pieceCapabilities game
 
-type Player = Color
+type Player = Player of Color
 
 type DisplayInfo = CellState[,]
 
@@ -353,17 +403,19 @@ type PlayerActionResult =
 /// called, will return the result of the movement (a MoveResult).
 /// </summary>
 and NextMoveInfo = {
-    movement: PlayerAction
-    capability: unit -> PlayerActionResult
+    action: PlayerAction
+    execute: unit -> PlayerActionResult
 }
 
-let opponent = function
+let opposite = function
     | White -> Black
     | Black -> White
 
+let opponent (Player playerColor) = Player (opposite playerColor)
+
 let getDisplayInfo game =
     Array2D.init 8  8 (fun r f ->
-        game @ (File.fromInt f, Rank.fromInt r)
+        game.pieces @ (File.fromInt f, Rank.fromInt r)
     )
 
 let private isCheckMateTo player gameState =
@@ -374,38 +426,36 @@ let private isCheckMateTo player gameState =
 
 let private isGameTied player gameState = false
 
-let private remainingMoves gameState: PlayerAction list = []
-
 /// <summary>Return the move result case for a player.</summary>
-let moveResultFor player displayInfo nextMoves = 
-    match player with
+let moveResultFor (Player playerColor) displayInfo nextMoves = 
+    match playerColor with
     | White -> PlayerWhiteToMove (displayInfo, nextMoves)
     | Black -> PlayerBlackToMove (displayInfo, nextMoves)
 
 let rec f x = x
 // given a player & a gameState, it returns a move result for that player.
-and makePlayerMoveResultWithCapabilities player gameState =
+and makePlayerMoveResultWithCapabilities (Player playerColor) gameState =
     let displayInfo = getDisplayInfo gameState
 
     let getCapabilities (sourcePiece, sourcePos) =
         pieceCapabilities gameState (sourcePiece, sourcePos)
         |> Seq.map MovePiece
 
-    let belongsToPlayer (Piece (color, _), _) = color = player
+    let belongsToPlayer (Piece (pieceColor, _), _) = pieceColor = playerColor
 
     let playerMovementCapabilities =
-        gameState
+        gameState.pieces
         |> Seq.filter belongsToPlayer
         |> Seq.collect getCapabilities
-        |> Seq.map (makeNextMoveInfo player gameState)
+        |> Seq.map (makeNextMoveInfo (Player playerColor) gameState)
         |> Seq.toList
 
-    moveResultFor player displayInfo playerMovementCapabilities
+    moveResultFor (Player playerColor) displayInfo playerMovementCapabilities
 
 and makeNextMoveInfo player gameState playerAction =
     // the capability has the player & cellPos & gameState baked in
     let capability() = executePlayerAction player gameState playerAction
-    { movement = playerAction; capability = capability }
+    { action = playerAction; execute = capability }
 
 // player makes a move
 and executePlayerAction player gameState playerAction: PlayerActionResult =
@@ -461,4 +511,17 @@ let newGame() =
         cell Black Rook   (H, R8)
     ]
 
-    makePlayerMoveResultWithCapabilities White initialCells
+    makePlayerMoveResultWithCapabilities (Player White) {
+        pieces = initialCells
+        whitePlayerCastleState = {
+                                    kingHasMoved = false
+                                    kingsRookHasMoved = false
+                                    queensRookHasMoved = false
+                                }
+        blackPlayerCastleState =
+        {
+            kingHasMoved = true
+            kingsRookHasMoved = false
+            queensRookHasMoved = false
+        }
+    }
