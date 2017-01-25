@@ -51,9 +51,9 @@ let positionToString ((f, r):Position) =
 let printPositions =
     List.map positionToString >> List.iter (printf "%A")
 
-let cellStateToString = function
-    | Empty _ -> "  "
-    | Cell (Piece (color, shape), _) -> sprintf "%s%s" color.toString shape.toString
+let squareToString = function
+    | EmptySquare _ -> "  "
+    | PieceSquare (Piece (color, shape), _) -> sprintf "%s%s" color.toString shape.toString
 
 let board toString displayInfo =
     let stringMatrix = displayInfo |> Array2D.map toString
@@ -74,7 +74,7 @@ let printBoard b =
     b |> Array.iteri printRow
     printfn "%s" filesHeader
 
-let cellWithCaps capList cellState =
+let squareWithActions capList square =
     let capabilityAt pos = capList |> Seq.tryFind (fun (_, p) -> p = pos)
 
     let actionToString = function
@@ -84,15 +84,15 @@ let cellWithCaps capList cellState =
         | CastleKingSide -> "k"
         | CastleQueenSide -> "q"
 
-    let cellStateActionToString =
-        cellState
+    let squareActionToString =
+        square
         |> position
         |> capabilityAt
         |> Option.map fst
         |> Option.map actionToString
         |> defaultArg <| " "
 
-    (cellStateToString cellState) + cellStateActionToString
+    (squareToString square) + squareActionToString
 
 let playerActionToString = function
     | MovePiece (Piece (_, shape), sourcePos, action, targetPos) ->
@@ -113,3 +113,38 @@ let playerActionToString = function
         | CastleKingSide -> "O-O"
         | CastleQueenSide -> "O-O-O"
     | Abandon -> "Abandon"
+
+let printActions domainActions = 
+    domainActions
+    |> Seq.map (fun moveInfo -> playerActionToString moveInfo.action)
+    |> String.concat ", "
+    |> printfn "%s"
+ 
+let printDisplayInfo displayInfo = 
+    board squareToString displayInfo.board |> printBoard
+    printfn "" 
+
+let printActionResult formerPlayerActionResult =
+    // handle each case of the result
+    match formerPlayerActionResult with
+    | Draw (displayInfo, _) -> 
+        displayInfo |> printDisplayInfo
+        printfn "GAME OVER - Draw"
+        printfn ""
+    | WonByAbandon (displayInfo, player) -> 
+        displayInfo |> printDisplayInfo
+        printfn "GAME WON because %A abandoned" (opponent player)
+        printfn ""
+    | WonByCheckMate (displayInfo, player) -> 
+        displayInfo |> printDisplayInfo
+        printfn "GAME WON by %A's checkmate" player
+        printfn ""
+    | PlayerWhiteToMove (displayInfo, availableActions) -> 
+        displayInfo |> printDisplayInfo
+        printfn "White to move" 
+        printActions availableActions
+    | PlayerBlackToMove (displayInfo, availableActions) -> 
+        displayInfo |> printDisplayInfo
+        printfn "Black to move" 
+        printActions availableActions
+ 
