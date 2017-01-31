@@ -1,6 +1,10 @@
 ﻿module Output
 
+open System
 open Domain
+open Microsoft.FSharp.Core.Printf
+
+// STRING REPRESENTATIONS
 
 type Shape
 with
@@ -48,31 +52,16 @@ type Color with
 let positionToString ((f, r):Position) =
     sprintf "%s%s" f.toString r.toString
 
-let printPositions =
-    List.map positionToString >> List.iter (printf "%A")
-
 let squareToString = function
     | EmptySquare _ -> "  "
     | PieceSquare (Piece (color, shape), _) -> sprintf "%s%s" color.toString shape.toString
-
+    
 let board toString displayInfo =
     let stringMatrix = displayInfo |> Array2D.map toString
 
     [|0..7|]
     |> Array.map (fun i -> stringMatrix.[i, *])
     |> Array.map (String.concat "|")
-
-let printBoard b = 
-    let printRow i x = printfn "%i|%s|%i" (8-i) x (8-i)
-    
-    let filesHeader =
-        [|"A"; "B"; "C"; "D"; "E"; "F"; "G"; "H"|]
-        |> Array.map (fun x -> x.PadLeft(3, ' '))
-        |> String.concat ""
-
-    printfn "%s" filesHeader
-    b |> Array.iteri printRow
-    printfn "%s" filesHeader
 
 let squareWithActions capList square =
     let capabilityAt pos = capList |> Seq.tryFind (fun (_, p) -> p = pos)
@@ -114,6 +103,38 @@ let playerActionToString = function
         | CastleQueenSide -> "O-O-O"
     | Abandon -> "Abandon"
 
+// CONSOLE OUTPUT
+
+let cprintf c fmt = 
+    kprintf
+        (fun s ->
+            let old = Console.ForegroundColor
+            try
+              Console.ForegroundColor <- c;
+              Console.Write s
+            finally
+              Console.ForegroundColor <- old)
+        fmt
+
+let cprintfn c fmt =
+    cprintf c fmt
+    printfn ""
+
+let printPositions =
+    List.map positionToString >> List.iter (printf "%A")
+
+let printBoard b = 
+    let printRow i x = printfn "%i|%s|%i" (8-i) x (8-i)
+    
+    let filesHeader =
+        [|"A"; "B"; "C"; "D"; "E"; "F"; "G"; "H"|]
+        |> Array.map (fun x -> x.PadLeft(3, ' '))
+        |> String.concat ""
+
+    printfn "%s" filesHeader
+    b |> Array.iteri printRow
+    printfn "%s" filesHeader
+
 let printActions domainActions = 
     domainActions
     |> Seq.map (fun moveInfo -> playerActionToString moveInfo.action)
@@ -122,11 +143,11 @@ let printActions domainActions =
  
 let printDisplayInfo displayInfo = 
     board squareToString displayInfo.board |> printBoard
+    displayInfo.playerToMove
+    |> Option.map (fun p -> printfn "%A moves" p) |> ignore
     printfn "" 
 
-let printActionResult formerPlayerActionResult =
-    // handle each case of the result
-    match formerPlayerActionResult with
+let printOutcome = function
     | Draw (displayInfo, _) -> 
         displayInfo |> printDisplayInfo
         printfn "GAME OVER - Draw"
@@ -139,12 +160,7 @@ let printActionResult formerPlayerActionResult =
         displayInfo |> printDisplayInfo
         printfn "GAME WON by %A's checkmate" player
         printfn ""
-    | PlayerWhiteToMove (displayInfo, availableActions) -> 
+    | PlayerMoved (displayInfo, availableActions) -> 
         displayInfo |> printDisplayInfo
-        printfn "White to move" 
-        printActions availableActions
-    | PlayerBlackToMove (displayInfo, availableActions) -> 
-        displayInfo |> printDisplayInfo
-        printfn "Black to move" 
         printActions availableActions
  

@@ -74,3 +74,6 @@
                 Failure errs
 
     let (>?>) f1 f2 = f1 >> Option.bind f2
+
+    let rec (*) f1 i =
+        if i = 1 then f1 else f1 >> Option.bind (f1 * (i-1))

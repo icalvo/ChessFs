@@ -165,40 +165,17 @@ let pawnCaptureReaches moveFn pos =
     |> List.filterNones
     |> List.map Seq.singleton
 
-let pawnEnPassantReach rankForEnPassant moveFn (pos: Position) =
-    match pos with
-    | (_, rank) when rank = rankForEnPassant ->
-        [
-            moveFn >?> Left;
-            moveFn >?> Right;
-        ]
-        |> List.apply pos
-        |> List.filterNones
-        |> List.map Seq.singleton
-    | _ -> []
+let kingCastleToKingReach moveFn (pos: Position) =
+    [ moveFn * 2; ]
+    |> List.apply pos
+    |> List.filterNones
+    |> List.map Seq.singleton
 
-
-let kingCastleToKingReach (castlePosition: Position) moveFn (pos: Position) =
-    if pos = castlePosition then
-        [
-            moveFn >?> moveFn;
-        ]
-        |> List.apply pos
-        |> List.filterNones
-        |> List.map Seq.singleton
-    else
-        []
-
-let kingCastleToQueenReach (castlePosition: Position) moveFn (pos: Position) =
-    if pos = castlePosition then
-        [
-            moveFn >?> moveFn >?> moveFn;
-        ]
-        |> List.apply pos
-        |> List.filterNones
-        |> List.map Seq.singleton
-    else
-        []
+let kingCastleToQueenReach moveFn (pos: Position) =
+    [ moveFn * 3; ]
+    |> List.apply pos
+    |> List.filterNones
+    |> List.map Seq.singleton
 
 type Color = Black | White
 
@@ -216,6 +193,10 @@ let placedPiece color shape pos = (Piece (color, shape), pos)
 
 let isEmpty = function
     | EmptySquare _ -> true
+    | _ -> false
+
+let hasPiece = function
+    | PieceSquare _ -> true
     | _ -> false
 
 let color = function
@@ -252,15 +233,13 @@ type PlayerAction =
 let pieceReachesGenerators = function
     | Piece (White, Pawn) ->
         [
-            (pawnMoveReaches    R2 Up, [ Move      ]);
-            (pawnCaptureReaches    Up, [ Capture   ]);
-            (pawnEnPassantReach R5 Up, [ EnPassant ])
+            (pawnMoveReaches    R2 Up, [ Move               ]);
+            (pawnCaptureReaches    Up, [ Capture; EnPassant ]);
         ]
     | Piece (Black, Pawn) ->
         [
-            (pawnMoveReaches R7 Down,    [ Move      ]);
-            (pawnCaptureReaches Down,    [ Capture   ]);
-            (pawnEnPassantReach R4 Down, [ EnPassant ])
+            (pawnMoveReaches    R7 Down, [ Move      ]);
+            (pawnCaptureReaches    Down, [ Capture; EnPassant ]);
         ]
     | Piece (_, Knight) -> [(knightReaches, [ Move; Capture ])]
     | Piece (_, Bishop) -> [(bishopReaches, [ Move; Capture ])]
@@ -268,15 +247,15 @@ let pieceReachesGenerators = function
     | Piece (_, Queen ) -> [(queenReaches , [ Move; Capture ])]
     | Piece (White, King  ) ->
         [
-            (kingReaches                         , [ Move; Capture ]);
-            (kingCastleToKingReach  (E, R1) Right, [ CastleKingSide ]);
-            (kingCastleToQueenReach (E, R1) Left , [ CastleQueenSide ]);
+            (kingReaches                 , [ Move; Capture   ]);
+            (kingCastleToKingReach  Right, [ CastleKingSide  ]);
+            (kingCastleToQueenReach Left , [ CastleQueenSide ]);
         ]
     | Piece (Black, King  ) ->
         [
-            (kingReaches                         , [ Move; Capture ]);
-            (kingCastleToKingReach  (E, R8) Left , [ CastleKingSide ]);
-            (kingCastleToQueenReach (E, R8) Right, [ CastleQueenSide ]);
+            (kingReaches                 , [ Move; Capture   ]);
+            (kingCastleToKingReach  Left , [ CastleKingSide  ]);
+            (kingCastleToQueenReach Right, [ CastleQueenSide ]);
         ]
 
 let sameColor (Piece (sourceColor, _)) square =
@@ -284,6 +263,8 @@ let sameColor (Piece (sourceColor, _)) square =
     | Some col -> col = sourceColor
     | None -> false
     
+let differentColor p s = not (sameColor p s)
+
 type CastleStatus = {
     kingHasMoved: bool
     kingsRookHasMoved: bool
@@ -293,19 +274,26 @@ type CastleStatus = {
 type GameState = {
     whitePlayerCastleState: CastleStatus
     blackPlayerCastleState: CastleStatus
+    enPassantPawn: Position option
     pieces: (Piece * Position) list
 }
 
-let evaluateSquareAction (game:GameState) targetPos piece action =
+let canExecute game sourcePiece sourcePos targetPos action =
     let targetSquare = game.pieces @ targetPos
     match action with
     | Move ->
         targetSquare |> isEmpty
     | Capture ->
-        targetSquare |> (not << sameColor piece) &&
-        targetSquare |> (not << isEmpty)
+        targetSquare |> hasPiece &&
+        targetSquare |> (differentColor sourcePiece)
     | EnPassant ->
-        isEmpty targetSquare
+        let passedPawnPos = (fst targetPos, snd sourcePos)
+
+        // targetSquare |> isEmpty && // THIS SHOULD BE ALWAYS TRUE
+        game.enPassantPawn
+        |> Option.map (fun p -> p = passedPawnPos)
+        |> Option.isSome
+
     | CastleKingSide ->
         false
     | CastleQueenSide ->
@@ -315,10 +303,10 @@ let reachIsOpen = function
     | Some (_, _, Move, _) -> true
     | _ -> false
 
-let evaluateSquare game actionsToAnalyze (piece, sourcePos) targetPos =
+let evaluateSquare game actionsToAnalyze (sourcePiece, sourcePos) targetPos =
     actionsToAnalyze
-    |> Seq.filter (evaluateSquareAction game targetPos piece)
-    |> Seq.map (fun action -> (piece, sourcePos, action, targetPos))
+    |> Seq.filter (canExecute game sourcePiece sourcePos targetPos)
+    |> Seq.map (fun action -> (sourcePiece, sourcePos, action, targetPos))
     |> Seq.tryHead
 
 let reachCapabilities game (piece, sourcePos) actionsToAnalyze reach =
@@ -356,13 +344,10 @@ let isAttacked color game targetPosition =
 
 /// <summary>Basic move operation. It simply empties the source pos and sets the target pos with the
 /// same the source had before.</summary>
-let private rawMoveAndReplace (sourcePos, targetPos) game =
-    let placedPieces =
-        match game.pieces @ sourcePos with
-        | EmptySquare _ -> game.pieces |> List.filter (fun (_, position) -> position <> targetPos)
-        | PieceSquare (piece, _) -> (piece, targetPos) :: (game.pieces |> List.filter (fun (_, position) -> position <> sourcePos && position <> targetPos))
-
-    { game with pieces = placedPieces }
+let private rawMoveAndReplace (sourcePos, targetPos) pieces =
+    match pieces @ sourcePos with
+    | EmptySquare _ -> pieces |> List.filter (fun (_, position) -> position <> targetPos)
+    | PieceSquare (piece, _) -> (piece, targetPos) :: (pieces |> List.filter (fun (_, position) -> position <> sourcePos && position <> targetPos))
 
 let isCheck color game =
     game.pieces
@@ -373,8 +358,10 @@ let isCheck color game =
 
 let pieceCapabilities game (piece, sourcePos) =
     let checkFilter (Piece (color, _), _, _, targetPos) =
-        game
-        |> rawMoveAndReplace (sourcePos, targetPos)
+        { game with 
+            pieces = 
+                game.pieces |> rawMoveAndReplace (sourcePos, targetPos)
+        }
         |> (not << isCheck color)
 
     uncheckedPieceCapabilities game (piece, sourcePos)
@@ -384,14 +371,14 @@ type Player = Player of Color
 
 type DisplayInfo = {
     board: Square[,]
+    playerToMove: Player option
 }
 
 /// <summary>
 /// Possible results of a player action result.
 /// </summary>
-type PlayerActionResult =
-    | PlayerWhiteToMove of DisplayInfo * ExecutableAction list
-    | PlayerBlackToMove of DisplayInfo * ExecutableAction list
+type PlayerActionOutcome =
+    | PlayerMoved of DisplayInfo * ExecutableAction list
     | WonByCheckMate of DisplayInfo * Player
     | WonByAbandon of DisplayInfo * Player
     | Draw of DisplayInfo * Player
@@ -403,16 +390,25 @@ type PlayerActionResult =
 /// </summary>
 and ExecutableAction = {
     action: PlayerAction
-    execute: unit -> PlayerActionResult
+    execute: unit -> PlayerActionOutcome
 }
 
 let opponent (Player playerColor) = Player (opposite playerColor)
 
-let getDisplayInfo game =
+let getFinalDisplayInfo game =
     {
         board = Array2D.init 8  8 (fun r f ->
             game.pieces @ (File.fromInt f, Rank.fromInt r)
         )
+        playerToMove = None
+    }
+
+let getDisplayInfo game player =
+    {
+        board = Array2D.init 8  8 (fun r f ->
+            game.pieces @ (File.fromInt f, Rank.fromInt r)
+        )
+        playerToMove = Some player
     }
 
 let private isCheckMateTo player gameState =
@@ -424,15 +420,13 @@ let private isCheckMateTo player gameState =
 let private isGameTied player gameState = false
 
 /// <summary>Return the move result case for a player.</summary>
-let moveResultFor (Player playerColor) displayInfo nextMoves = 
-    match playerColor with
-    | White -> PlayerWhiteToMove (displayInfo, nextMoves)
-    | Black -> PlayerBlackToMove (displayInfo, nextMoves)
+let moveResultFor displayInfo nextMoves = 
+    PlayerMoved (displayInfo, nextMoves)
 
 let rec f x = x
 // given a player & a gameState, it returns a move result for that player.
 and makePlayerMoveResultWithCapabilities (Player playerColor) gameState =
-    let displayInfo = getDisplayInfo gameState
+    let displayInfo = getDisplayInfo gameState (Player playerColor)
 
     let getCapabilities (sourcePiece, sourcePos) =
         pieceCapabilities gameState (sourcePiece, sourcePos)
@@ -447,7 +441,7 @@ and makePlayerMoveResultWithCapabilities (Player playerColor) gameState =
         |> Seq.map (makeNextMoveInfo (Player playerColor) gameState)
         |> Seq.toList
 
-    moveResultFor (Player playerColor) displayInfo playerMovementCapabilities
+    moveResultFor displayInfo playerMovementCapabilities
 
 and makeNextMoveInfo player gameState playerAction =
     // the capability has the player & action to take & gameState baked in
@@ -455,21 +449,23 @@ and makeNextMoveInfo player gameState playerAction =
     { action = playerAction; execute = executeFn }
 
 // player makes a move
-and executePlayerAction player gameState playerAction: PlayerActionResult =
+and executePlayerAction player gameState playerAction: PlayerActionOutcome =
     match playerAction with
-    | MovePiece (_, spos, _, tpos) ->
-        let newGameState = gameState |> rawMoveAndReplace (spos, tpos)
-        let displayInfo = getDisplayInfo newGameState 
+    | MovePiece (_, spos, action, tpos) ->
+        let newGameState =
+            { gameState with
+                pieces = gameState.pieces |> rawMoveAndReplace (spos, tpos)
+            }
 
         if newGameState |> isCheckMateTo player then
-            // return the move result
+            let displayInfo = getFinalDisplayInfo newGameState
             WonByCheckMate (displayInfo, player)
         // TODO: Tie and abandonment
         else
             let otherPlayer = opponent player
             makePlayerMoveResultWithCapabilities otherPlayer newGameState
     | Abandon ->
-        let displayInfo = getDisplayInfo gameState
+        let displayInfo = getFinalDisplayInfo gameState
         WonByAbandon (displayInfo, (opponent player))
 
 let newGame() =
@@ -514,11 +510,11 @@ let newGame() =
                                     kingHasMoved = false
                                     kingsRookHasMoved = false
                                     queensRookHasMoved = false
-                                }
-        blackPlayerCastleState =
-        {
-            kingHasMoved = true
-            kingsRookHasMoved = false
-            queensRookHasMoved = false
-        }
+                                 }
+        blackPlayerCastleState = {
+                                    kingHasMoved = false
+                                    kingsRookHasMoved = false
+                                    queensRookHasMoved = false
+                                 }
+        enPassantPawn = None
     }

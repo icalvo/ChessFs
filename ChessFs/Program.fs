@@ -8,7 +8,7 @@ type UserAction<'a> =
     | ExitGame
 
 type ProgramState =
-    | AskingAction of PlayerActionResult
+    | AskingAction of PlayerActionOutcome
     | AskingToPlayAgain
     | Exiting
  
@@ -37,7 +37,7 @@ let askProgramAction availableActions input actionResult =
         Exiting
     else
         let newActionResult = askActionResult input availableActions actionResult
-        printActionResult newActionResult
+        printOutcome newActionResult
         AskingAction newActionResult
   
 let handleActionResult formerPlayerActionResult input =
@@ -48,9 +48,7 @@ let handleActionResult formerPlayerActionResult input =
         AskingToPlayAgain
     | WonByCheckMate _ -> 
         AskingToPlayAgain
-    | PlayerWhiteToMove (_, availableActions) -> 
-        askProgramAction availableActions input formerPlayerActionResult
-    | PlayerBlackToMove (_, availableActions) -> 
+    | PlayerMoved (_, availableActions) -> 
         askProgramAction availableActions input formerPlayerActionResult
 
 let askToPlayAgain input =
@@ -96,7 +94,7 @@ let consoleInput =
 [<EntryPoint>]
 let main argv =
     let firstActionResult = newGame()
-    printActionResult firstActionResult
+    printOutcome firstActionResult
     let initialState = AskingAction firstActionResult
     let isFinish = function
         | Exiting -> true
