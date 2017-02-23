@@ -228,7 +228,7 @@ type Action =
 
 type PlayerAction =
     | MovePiece of Piece * Position * Action * Position
-    | Abandon
+    | Resign
 
 let pieceReachesGenerators = function
     | Piece (White, Pawn) ->
@@ -374,13 +374,22 @@ type DisplayInfo = {
     playerToMove: Player option
 }
 
+type DrawTypes =
+    | Agreed
+    | Stalemate
+    | FiftyMovements
+    | ThreefoldRepetition
+    | FivefoldRepetition
+    | SeventyFiveMovements
+    | InsufficientMaterial
+
 /// <summary>
 /// Possible results of a player action result.
 /// </summary>
 type PlayerActionOutcome =
     | PlayerMoved of DisplayInfo * ExecutableAction list
-    | WonByCheckMate of DisplayInfo * Player
-    | WonByAbandon of DisplayInfo * Player
+    | WonByCheckmate of DisplayInfo * Player
+    | LostByResignation of DisplayInfo * Player
     | Draw of DisplayInfo * Player
 
 /// <summary>
@@ -411,7 +420,7 @@ let getDisplayInfo game player =
         playerToMove = Some player
     }
 
-let private isCheckMateTo player gameState =
+let private isCheckmateTo player gameState =
     // TODO:
     // let (<&>) f g = (fun x -> f x && g x)
     // isCheck <&> capabilities 
@@ -451,22 +460,22 @@ and makeNextMoveInfo player gameState playerAction =
 // player makes a move
 and executePlayerAction player gameState playerAction: PlayerActionOutcome =
     match playerAction with
-    | MovePiece (_, spos, action, tpos) ->
+    | MovePiece (_, spos, _, tpos) ->
         let newGameState =
             { gameState with
                 pieces = gameState.pieces |> rawMoveAndReplace (spos, tpos)
             }
 
-        if newGameState |> isCheckMateTo player then
+        if newGameState |> isCheckmateTo player then
             let displayInfo = getFinalDisplayInfo newGameState
-            WonByCheckMate (displayInfo, player)
+            WonByCheckmate (displayInfo, player)
         // TODO: Tie and abandonment
         else
             let otherPlayer = opponent player
             makePlayerMoveResultWithCapabilities otherPlayer newGameState
-    | Abandon ->
+    | Resign ->
         let displayInfo = getFinalDisplayInfo gameState
-        WonByAbandon (displayInfo, (opponent player))
+        LostByResignation (displayInfo, (opponent player))
 
 let newGame() =
     let initialPieces = [

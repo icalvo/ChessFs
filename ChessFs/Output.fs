@@ -3,6 +3,7 @@
 open System
 open Domain
 open Microsoft.FSharp.Core.Printf
+open Microsoft.FSharp.Reflection
 
 // STRING REPRESENTATIONS
 
@@ -32,7 +33,7 @@ with
 
 type File
 with
-    member this.toString =
+    member this.toAlgebraic =
         match this with
         | A -> "a"
         | B -> "b"
@@ -42,6 +43,16 @@ with
         | F -> "f"
         | G -> "g"
         | H -> "h"
+    member this.toNumeric =
+        match this with
+        | A -> "1"
+        | B -> "2"
+        | C -> "3"
+        | D -> "4"
+        | E -> "5"
+        | F -> "6"
+        | G -> "7"
+        | H -> "8"
 
 type Color with
     member this.toString =
@@ -49,8 +60,8 @@ type Color with
         | Black -> "b"
         | White -> "w"
 
-let positionToString ((f, r):Position) =
-    sprintf "%s%s" f.toString r.toString
+let positionToAlgebraic ((f, r):Position) =
+    sprintf "%s%s" f.toAlgebraic r.toString
 
 let squareToString = function
     | EmptySquare _ -> "  "
@@ -83,9 +94,9 @@ let squareWithActions capList square =
 
     (squareToString square) + squareActionToString
 
-let playerActionToString = function
+let playerActionToAlgebraic = function
     | MovePiece (Piece (_, shape), sourcePos, action, targetPos) ->
-        let targetPosString = positionToString targetPos
+        let targetPosString = positionToAlgebraic targetPos
         let sourceFile = (fst sourcePos)
         match action with
         | Move ->
@@ -96,12 +107,12 @@ let playerActionToString = function
             match shape with
             | Pawn ->
                 
-                sprintf "%sx%s" sourceFile.toString targetPosString
+                sprintf "%sx%s" sourceFile.toAlgebraic targetPosString
             | _ -> sprintf "%sx%s" shape.toString targetPosString
-        | EnPassant -> sprintf "%sx%s" sourceFile.toString targetPosString
+        | EnPassant -> sprintf "%sx%s" sourceFile.toAlgebraic targetPosString
         | CastleKingSide -> "O-O"
         | CastleQueenSide -> "O-O-O"
-    | Abandon -> "Abandon"
+    | Resign -> "Resign"
 
 // CONSOLE OUTPUT
 
@@ -121,7 +132,7 @@ let cprintfn c fmt =
     printfn ""
 
 let printPositions =
-    List.map positionToString >> List.iter (printf "%A")
+    List.map positionToAlgebraic >> List.iter (printf "%A")
 
 let printBoard b = 
     let printRow i x = printfn "%i|%s|%i" (8-i) x (8-i)
@@ -137,7 +148,7 @@ let printBoard b =
 
 let printActions domainActions = 
     domainActions
-    |> Seq.map (fun moveInfo -> playerActionToString moveInfo.action)
+    |> Seq.map (fun moveInfo -> playerActionToAlgebraic moveInfo.action)
     |> String.concat ", "
     |> printfn "%s"
  
@@ -152,13 +163,13 @@ let printOutcome = function
         displayInfo |> printDisplayInfo
         printfn "GAME OVER - Draw"
         printfn ""
-    | WonByAbandon (displayInfo, player) -> 
+    | LostByResignation (displayInfo, player) -> 
         displayInfo |> printDisplayInfo
-        printfn "GAME WON because %A abandoned" (opponent player)
+        printfn "GAME WON because %A resigned" (opponent player)
         printfn ""
-    | WonByCheckMate (displayInfo, player) -> 
+    | WonByCheckmate (displayInfo, player) -> 
         displayInfo |> printDisplayInfo
-        printfn "GAME WON by %A's checkmate" player
+        printfn "GAME WON by checkmating %A" player
         printfn ""
     | PlayerMoved (displayInfo, availableActions) -> 
         displayInfo |> printDisplayInfo

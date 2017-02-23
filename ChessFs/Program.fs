@@ -44,9 +44,9 @@ let handleActionResult formerPlayerActionResult input =
     match formerPlayerActionResult with
     | Draw _ -> 
         AskingToPlayAgain
-    | WonByAbandon _ -> 
+    | LostByResignation _ -> 
         AskingToPlayAgain
-    | WonByCheckMate _ -> 
+    | WonByCheckmate _ -> 
         AskingToPlayAgain
     | PlayerMoved (_, availableActions) -> 
         askProgramAction availableActions input formerPlayerActionResult
