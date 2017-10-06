@@ -50,8 +50,9 @@
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="Configuration.fs" />
     <Compile Include="Utils.fs" />
-    <Compile Include="Domain.fs" />
+    <Compile Include="Chess.fs" />
     <Compile Include="Output.fs" />
+    <Compile Include="GameConsole.fs" />
     <Compile Include="Program.fs" />
     <None Include="App.config" />
   </ItemGroup>

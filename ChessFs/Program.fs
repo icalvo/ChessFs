@@ -1,20 +1,11 @@
-﻿open Domain
+﻿open Chess
 open Output
 open System
+open GameConsole
 
-/// Track the UI state
-type UserAction<'a> =
-    | ContinuePlay of 'a
-    | ExitGame
-
-type ProgramState =
-    | AskingAction of PlayerActionOutcome
-    | AskingToPlayAgain
-    | Exiting
- 
 let askExecutableAction input availableActions =
         availableActions
-        |> List.filter (fun { action = m } -> playerActionToString m = input)
+        |> List.filter (fun { action = m } -> playerActionToAlgebraic m = input)
         |> List.tryHead
 
 /// Given that the user has not quit, attempt to parse
@@ -33,15 +24,25 @@ let askActionResult input availableActions oldActionResult =
 /// a move index or a "quit" command
 let askProgramAction availableActions input actionResult = 
     printfn "Enter an int corresponding to a displayed move or q to quit:"
+
     if input = "q" then
         Exiting
     else
         let newActionResult = askActionResult input availableActions actionResult
         printOutcome newActionResult
         AskingAction newActionResult
+ 
+/// Ask the user for a draw agreement.
+let askDrawAgreement input displayInfo player playerMovementCapabilities = 
+    printfn "Draw offered. Enter y to accept, n to reject or q to quit:"
+    match input with
+    | "y" -> AskingAction (Draw (displayInfo, player))
+    | "n" -> AskingAction (PlayerMoved (displayInfo, playerMovementCapabilities))
+    | "q" -> Exiting
+    | _   -> Exiting
   
-let handleActionResult formerPlayerActionResult input =
-    match formerPlayerActionResult with
+let handleChessActionOutcome formerPlayerActionOutcome input =
+    match formerPlayerActionOutcome with
     | Draw _ -> 
         AskingToPlayAgain
     | LostByResignation _ -> 
@@ -49,60 +50,23 @@ let handleActionResult formerPlayerActionResult input =
     | WonByCheckmate _ -> 
         AskingToPlayAgain
     | PlayerMoved (_, availableActions) -> 
-        askProgramAction availableActions input formerPlayerActionResult
+        askProgramAction availableActions input formerPlayerActionOutcome
+    | DrawOffer (displayInfo, player, playerMovementCapabilities) ->
+        askDrawAgreement input displayInfo player playerMovementCapabilities
 
-let askToPlayAgain input =
-    printfn "Would you like to play again (y/n)?"
-    match input with
-    | "y" -> 
-        AskingAction (newGame())
-    | "n" -> 
-        Exiting
-    | _ ->
-        AskingToPlayAgain
-
-let transition state input =
-    match state with
-    | AskingAction a ->
-        handleActionResult a input
-    | AskingToPlayAgain ->
-        askToPlayAgain input
-    | Exiting ->
-        Exiting
-
-let gameLoop input =
-    let initialState = AskingAction (newGame())
-    let isNotExiting = function
-        | Exiting -> false
-        | _ -> true
-
-    input
-    |> Seq.scan transition initialState
-    |> Seq.takeWhile isNotExiting
-    |> Seq.iter ignore
-
-let interactiveConsole (transition:'State -> 'Input -> 'State) (isFinish:'State -> bool) (initialState:'State) (input:seq<'Input>): 'State list =
-    input
-    |> Seq.scan transition initialState
-    |> Seq.takeWhile (not << isFinish)
-    |> Seq.toList
-
-let consoleInput =
-    Seq.initInfinite (fun _ -> Console.ReadLine())
-    |>  Seq.takeWhile ((<>) null)
 
 [<EntryPoint>]
 let main argv =
-    let firstActionResult = newGame()
-    printOutcome firstActionResult
-    let initialState = AskingAction firstActionResult
+    printOutcome newChessGame
+    let initialState = AskingAction newChessGame
     let isFinish = function
         | Exiting -> true
         | _ -> false
 
     let input = if Array.isEmpty argv then consoleInput else Array.toSeq argv
+    let chessTransition = gameTransition newChessGame handleChessActionOutcome
 
-    ignore <| interactiveConsole transition isFinish initialState input
+    ignore <| interactiveConsole chessTransition isFinish initialState input
     printfn "Bye!"
     ignore <| Console.ReadLine()
     0

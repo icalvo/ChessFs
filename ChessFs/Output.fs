@@ -1,9 +1,8 @@
 ﻿module Output
 
 open System
-open Domain
+open Chess
 open Microsoft.FSharp.Core.Printf
-open Microsoft.FSharp.Reflection
 
 // STRING REPRESENTATIONS
 
@@ -112,7 +111,8 @@ let playerActionToAlgebraic = function
         | EnPassant -> sprintf "%sx%s" sourceFile.toAlgebraic targetPosString
         | CastleKingSide -> "O-O"
         | CastleQueenSide -> "O-O-O"
-    | Resign -> "Resign"
+    | Resign -> "r"
+    | OfferDraw -> "d"
 
 // CONSOLE OUTPUT
 
@@ -174,4 +174,6 @@ let printOutcome = function
     | PlayerMoved (displayInfo, availableActions) -> 
         displayInfo |> printDisplayInfo
         printActions availableActions
+    | DrawOffer (displayInfo, player, _) ->
+        printfn "DRAW OFFERED by %A" player
  

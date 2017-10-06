@@ -1,4 +1,4 @@
-﻿module Domain
+﻿module Chess
 open Utils
 
 // CORE TYPES
@@ -229,6 +229,7 @@ type Action =
 type PlayerAction =
     | MovePiece of Piece * Position * Action * Position
     | Resign
+    | OfferDraw
 
 let pieceReachesGenerators = function
     | Piece (White, Pawn) ->
@@ -391,6 +392,7 @@ type PlayerActionOutcome =
     | WonByCheckmate of DisplayInfo * Player
     | LostByResignation of DisplayInfo * Player
     | Draw of DisplayInfo * Player
+    | DrawOffer of DisplayInfo * Player * ExecutableAction list
 
 /// <summary>
 /// Information about one possible movement. It includes
@@ -432,9 +434,8 @@ let private isGameTied player gameState = false
 let moveResultFor displayInfo nextMoves = 
     PlayerMoved (displayInfo, nextMoves)
 
-let rec f x = x
 // given a player & a gameState, it returns a move result for that player.
-and makePlayerMoveResultWithCapabilities (Player playerColor) gameState =
+let rec makePlayerMoveResultWithCapabilities (Player playerColor) gameState =
     let displayInfo = getDisplayInfo gameState (Player playerColor)
 
     let getCapabilities (sourcePiece, sourcePos) =
@@ -447,6 +448,7 @@ and makePlayerMoveResultWithCapabilities (Player playerColor) gameState =
         gameState.pieces
         |> Seq.filter belongsToPlayer
         |> Seq.collect getCapabilities
+        |> Seq.append [Resign; OfferDraw]
         |> Seq.map (makeNextMoveInfo (Player playerColor) gameState)
         |> Seq.toList
 
@@ -476,8 +478,28 @@ and executePlayerAction player gameState playerAction: PlayerActionOutcome =
     | Resign ->
         let displayInfo = getFinalDisplayInfo gameState
         LostByResignation (displayInfo, (opponent player))
+    | OfferDraw ->
+        let displayInfo = getDisplayInfo gameState player
+        
+        let getCapabilities (sourcePiece, sourcePos) =
+            pieceCapabilities gameState (sourcePiece, sourcePos)
+            |> Seq.map MovePiece
+        
+        let colorOf = fun (Player color) -> color
 
-let newGame() =
+        let belongsToPlayer (Piece (pieceColor, _), _) = pieceColor = colorOf player
+
+        let playerMovementCapabilities =
+            gameState.pieces
+            |> Seq.filter belongsToPlayer
+            |> Seq.collect getCapabilities
+            |> Seq.map (makeNextMoveInfo player gameState)
+            |> Seq.toList
+
+        DrawOffer (displayInfo, player, playerMovementCapabilities)
+
+
+let newChessGame =
     let initialPieces = [
         placedPiece White Rook   (A, R1)
         placedPiece White Knight (B, R1)
