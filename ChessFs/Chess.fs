@@ -434,21 +434,26 @@ let private isGameTied player gameState = false
 let moveResultFor displayInfo nextMoves = 
     PlayerMoved (displayInfo, nextMoves)
 
-// given a player & a gameState, it returns a move result for that player.
-let rec makePlayerMoveResultWithCapabilities (Player playerColor) gameState =
-    let displayInfo = getDisplayInfo gameState (Player playerColor)
-
+// given a player & a gameState, it returns the possible player actions.
+let playerActions (Player playerColor) gameState =
     let getCapabilities (sourcePiece, sourcePos) =
         pieceCapabilities gameState (sourcePiece, sourcePos)
         |> Seq.map MovePiece
 
     let belongsToPlayer (Piece (pieceColor, _), _) = pieceColor = playerColor
+    
+    gameState.pieces
+    |> Seq.filter belongsToPlayer
+    |> Seq.collect getCapabilities
+    |> Seq.append [Resign; OfferDraw]
 
+
+// given a player & a gameState, it returns a move result for that player.
+let rec makePlayerMoveResultWithCapabilities (Player playerColor) gameState =
+    let displayInfo = getDisplayInfo gameState (Player playerColor)
+    let t = playerActions (Player playerColor) gameState
     let playerMovementCapabilities =
-        gameState.pieces
-        |> Seq.filter belongsToPlayer
-        |> Seq.collect getCapabilities
-        |> Seq.append [Resign; OfferDraw]
+        t
         |> Seq.map (makeNextMoveInfo (Player playerColor) gameState)
         |> Seq.toList
 
@@ -480,19 +485,10 @@ and executePlayerAction player gameState playerAction: PlayerActionOutcome =
         LostByResignation (displayInfo, (opponent player))
     | OfferDraw ->
         let displayInfo = getDisplayInfo gameState player
-        
-        let getCapabilities (sourcePiece, sourcePos) =
-            pieceCapabilities gameState (sourcePiece, sourcePos)
-            |> Seq.map MovePiece
-        
-        let colorOf = fun (Player color) -> color
 
-        let belongsToPlayer (Piece (pieceColor, _), _) = pieceColor = colorOf player
-
+        let t = playerActions player gameState
         let playerMovementCapabilities =
-            gameState.pieces
-            |> Seq.filter belongsToPlayer
-            |> Seq.collect getCapabilities
+            t
             |> Seq.map (makeNextMoveInfo player gameState)
             |> Seq.toList
 
