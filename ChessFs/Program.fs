@@ -62,11 +62,14 @@ let main argv =
     let isFinish = function
         | Exiting -> true
         | _ -> false
+    
+    //let input = ["e4";"e5"]
+        //|> Seq.append argv
+    let input = consoleInput
 
-    let input = if Array.isEmpty argv then consoleInput else Array.toSeq argv
     let chessTransition = gameTransition newChessGame handleChessActionOutcome
 
-    ignore <| interactiveConsole chessTransition isFinish initialState input
+    ignore <| stateMachine chessTransition isFinish initialState input
     printfn "Bye!"
     ignore <| Console.ReadLine()
     0

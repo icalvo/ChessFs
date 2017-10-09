@@ -82,6 +82,8 @@ let squareWithActions capList square =
         | EnPassant -> "p"
         | CastleKingSide -> "k"
         | CastleQueenSide -> "q"
+        | Promote -> "M"
+        | CaptureAndPromote -> "C"
 
     let squareActionToString =
         square
@@ -104,13 +106,13 @@ let playerActionToAlgebraic = function
             | _ -> sprintf "%s%s" shape.toString targetPosString
         | Capture ->
             match shape with
-            | Pawn ->
-                
-                sprintf "%sx%s" sourceFile.toAlgebraic targetPosString
+            | Pawn -> sprintf "%sx%s" sourceFile.toAlgebraic targetPosString
             | _ -> sprintf "%sx%s" shape.toString targetPosString
         | EnPassant -> sprintf "%sx%s" sourceFile.toAlgebraic targetPosString
         | CastleKingSide -> "O-O"
         | CastleQueenSide -> "O-O-O"
+        | Promote -> sprintf "%s=?" targetPosString
+        | CaptureAndPromote -> sprintf "%sx%s=?" sourceFile.toAlgebraic targetPosString
     | Resign -> "r"
     | OfferDraw -> "d"
 

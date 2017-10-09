@@ -1,5 +1,4 @@
 ﻿module Utils
-    open Configuration
 
     module Option =
         let defaultTo defValue opt = defaultArg opt defValue
@@ -27,6 +26,12 @@
             // (making sure that the enumerator gets disposed)
             seq { use en = s.GetEnumerator()
                 yield! loop en }
+        /// <summary>
+        /// Version of Seq.unfold in which the State and T types are the same
+        /// </summary>
+        /// <param name="nextFn"></param>
+        let unfold2 nextFn =
+            nextFn >> Option.map (fun x -> (x, x)) |> Seq.unfold
 
     module List =
         let pipe action = List.map (fun x -> action x; x)
