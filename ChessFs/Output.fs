@@ -95,24 +95,27 @@ let squareWithActions capList square =
 
     (squareToString square) + squareActionToString
 
+let plyToAlgebraic ply =
+    let (sourcePos, targetPos) = plyPositions ply
+    let targetPosString = positionToAlgebraic targetPos
+    let sourceFile = (fst sourcePos)
+    match ply with
+    | Ply.Move (Piece (_, Pawn), _, _) ->
+        sprintf "%s" targetPosString
+    | Ply.Move (Piece (_, shape), _, _) ->
+        sprintf "%s%s" shape.toString targetPosString
+    | Ply.Capture (Piece (_, shape), _, _) ->
+        match shape with
+        | Pawn -> sprintf "%sx%s" sourceFile.toAlgebraic targetPosString
+        | _ -> sprintf "%sx%s" shape.toString targetPosString
+    | Ply.EnPassant _ -> sprintf "%sx%s" sourceFile.toAlgebraic targetPosString
+    | Ply.CastleKingSide _ -> "O-O"
+    | Ply.CastleQueenSide _ -> "O-O-O"
+    | Ply.Promote (_, _, _, tshape) -> sprintf "%s=%s" targetPosString tshape.toString
+    | Ply.CaptureAndPromote (_, _, _, tshape) -> sprintf "%sx%s=%s" sourceFile.toAlgebraic targetPosString tshape.toString
+
 let playerActionToAlgebraic = function
-    | MovePiece (Piece (_, shape), sourcePos, action, targetPos) ->
-        let targetPosString = positionToAlgebraic targetPos
-        let sourceFile = (fst sourcePos)
-        match action with
-        | Move ->
-            match shape with
-            | Pawn -> sprintf "%s" targetPosString
-            | _ -> sprintf "%s%s" shape.toString targetPosString
-        | Capture ->
-            match shape with
-            | Pawn -> sprintf "%sx%s" sourceFile.toAlgebraic targetPosString
-            | _ -> sprintf "%sx%s" shape.toString targetPosString
-        | EnPassant -> sprintf "%sx%s" sourceFile.toAlgebraic targetPosString
-        | CastleKingSide -> "O-O"
-        | CastleQueenSide -> "O-O-O"
-        | Promote -> sprintf "%s=?" targetPosString
-        | CaptureAndPromote -> sprintf "%sx%s=?" sourceFile.toAlgebraic targetPosString
+    | MovePiece ply -> plyToAlgebraic ply
     | Resign -> "r"
     | OfferDraw -> "d"
 
@@ -148,11 +151,15 @@ let printBoard b =
     b |> Array.iteri printRow
     printfn "%s" filesHeader
 
-let printActions domainActions = 
-    domainActions
-    |> Seq.map (fun moveInfo -> playerActionToAlgebraic moveInfo.action)
-    |> String.concat ", "
-    |> printfn "%s"
+let csl toString seq = seq |> Seq.map toString |> String.concat ", "
+
+let actionsOutput seq = 
+    csl (fun moveInfo -> playerActionToAlgebraic moveInfo.action) seq
+
+
+let printActions = 
+    csl (fun moveInfo -> playerActionToAlgebraic moveInfo.action)
+    >> printfn "%s"
  
 let printDisplayInfo displayInfo = 
     board squareToString displayInfo.board |> printBoard
@@ -176,6 +183,6 @@ let printOutcome = function
     | PlayerMoved (displayInfo, availableActions) -> 
         displayInfo |> printDisplayInfo
         printActions availableActions
-    | DrawOffer (displayInfo, player, _) ->
+    | DrawOffer (_, player, _) ->
         printfn "DRAW OFFERED by %A" player
  

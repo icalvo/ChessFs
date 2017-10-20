@@ -283,17 +283,29 @@ let at pos placedPieces =
 
 let (@) game pos = at pos game
 
-type PieceAction2 =
+type Ply =
     | Move of Piece * Position * Position
     | Capture of Piece * Position * Position
     | EnPassant of Piece * Position * Position
     | CastleKingSide of Color
     | CastleQueenSide of Color
-    | Promote of Piece * Position * Position * Piece
-    | CaptureAndPromote of Piece * Position * Position * Piece
+    | Promote of Piece * Position * Position * Shape
+    | CaptureAndPromote of Piece * Position * Position * Shape
 
-type PlayerAction2 =
-    | MovePiece of PieceAction2
+let plyPositions = function
+    | Move (_, s, t) -> (s, t)
+    | Capture (_, s, t) -> (s, t)
+    | EnPassant (_, s, t) -> (s, t)
+    | CastleKingSide White -> (E1, G1)
+    | CastleQueenSide White -> (E1, C1)
+    | CastleKingSide Black -> (E8, G8)
+    | CastleQueenSide Black -> (E8, C8)
+    | Promote (_, s, t, _) -> (s, t)
+    | CaptureAndPromote (_, s, t, _) -> (s, t)
+
+
+type PlayerAction =
+    | MovePiece of Ply
     | Resign
     | OfferDraw
 
@@ -305,11 +317,6 @@ type PieceAction =
     | CastleQueenSide
     | Promote
     | CaptureAndPromote
-
-type PlayerAction =
-    | MovePiece of Piece * Position * PieceAction * Position
-    | Resign
-    | OfferDraw
 
 let whitePawnMoveReaches =    pawnMoveReaches    R2 Up
 let whitePawnCaptureReaches = pawnCaptureReaches    Up
@@ -433,12 +440,14 @@ let sameColor (Piece (sourceColor, _)) square =
 let differentColor p s = not (sameColor p s)
 
 type CastleStatus = {
-    kingHasMoved: bool
-    kingsRookHasMoved: bool
-    queensRookHasMoved: bool
+    canCastleKingside: bool
+    canCastleQueenside: bool
 }
 
+let cannotCastle = { canCastleKingside = true; canCastleQueenside = true }
+
 type GameState = {
+    turn: Color
     whitePlayerCastleState: CastleStatus
     blackPlayerCastleState: CastleStatus
     enPassantPawn: Position option
@@ -461,14 +470,23 @@ let canExecute game sourcePiece sourcePos targetPos action =
         |> Option.map (fun p -> p = passedPawnPos)
         |> Option.isSome
 
-    | CastleKingSide ->
-        false
-    | CastleQueenSide ->
+    | _ ->
         false
 
 let reachIsOpen = function
     | Some (_, _, Move, _) -> true
     | _ -> false
+
+let toPlies (Piece (color, sh), s, a, t) =
+    let p = Piece (color, sh)
+    match a with
+    | Move -> [ Ply.Move (p, s, t) ]
+    | Capture -> [ Ply.Capture (p, s, t) ]
+    | EnPassant -> [ Ply.EnPassant (p, s, t) ]
+    | CastleKingSide -> [ Ply.CastleKingSide color ]
+    | CastleQueenSide -> [ Ply.CastleQueenSide color ]
+    | Promote -> [ Queen; Rook; Bishop; Knight ] |> List.map (fun shape -> Ply.Promote (p, s, t, shape))
+    | CaptureAndPromote -> [ Queen; Rook; Bishop; Knight ] |> List.map (fun shape -> Ply.CaptureAndPromote (p, s, t, shape))
 
 let evaluateSquare game actionToAnalyze (sourcePiece, sourcePos) targetPos =
     let can = canExecute game sourcePiece sourcePos targetPos actionToAnalyze
@@ -487,7 +505,7 @@ let uncheckedPieceCapabilities game (piece, sourcePos) =
 /// <summary>Determines the attacks a piece of the game is making.</summary>
 let attacksBy game placedPiece =
     uncheckedPieceCapabilities game placedPiece
-    |> Seq.filter (fun (_, _, action, _) -> action = Capture)
+    |> Seq.filter (fun (_, _, action, _) -> action = Capture || action = CaptureAndPromote)
     |> Seq.map (fun (_, _, _, pos) -> pos)
 
 /// <summary>Determines the attacks a piece of the game is making.</summary>
@@ -526,11 +544,9 @@ let pieceCapabilities game (piece, sourcePos) =
     uncheckedPieceCapabilities game (piece, sourcePos)
     |> Seq.filter checkFilter
 
-type Player = Player of Color
-
 type DisplayInfo = {
     board: Square[,]
-    playerToMove: Player option
+    playerToMove: Color option
 }
 
 type DrawTypes =
@@ -547,10 +563,10 @@ type DrawTypes =
 /// </summary>
 type PlayerActionOutcome =
     | PlayerMoved of DisplayInfo * ExecutableAction list
-    | WonByCheckmate of DisplayInfo * Player
-    | LostByResignation of DisplayInfo * Player
-    | Draw of DisplayInfo * Player
-    | DrawOffer of DisplayInfo * Player * ExecutableAction list
+    | WonByCheckmate of DisplayInfo * Color
+    | LostByResignation of DisplayInfo * Color
+    | Draw of DisplayInfo * Color
+    | DrawOffer of DisplayInfo * Color * ExecutableAction list
 
 /// <summary>
 /// Information about one possible movement. It includes
@@ -562,7 +578,7 @@ and ExecutableAction = {
     execute: unit -> PlayerActionOutcome
 }
 
-let opponent (Player playerColor) = Player (opposite playerColor)
+let opponent = opposite
 
 let getFinalDisplayInfo game =
     {
@@ -572,12 +588,12 @@ let getFinalDisplayInfo game =
         playerToMove = None
     }
 
-let getDisplayInfo game player =
+let getDisplayInfo game =
     {
         board = Array2D.init 8  8 (fun r f ->
             game.pieces @ (File.fromInt f, Rank.fromInt r)
         )
-        playerToMove = Some player
+        playerToMove = Some game.turn
     }
 
 let private isCheckmateTo player gameState =
@@ -593,12 +609,14 @@ let moveResultFor displayInfo nextMoves =
     PlayerMoved (displayInfo, nextMoves)
 
 // given a player & a gameState, it returns the possible player actions.
-let playerActions (Player playerColor) gameState =
+let playerActions gameState =
+    printfn "Calculating playerActions..."
     let getCapabilities (sourcePiece, sourcePos) =
         pieceCapabilities gameState (sourcePiece, sourcePos)
+        |> Seq.collect (toPlies)
         |> Seq.map MovePiece
 
-    let belongsToPlayer (Piece (pieceColor, _), _) = pieceColor = playerColor
+    let belongsToPlayer (Piece (pieceColor, _), _) = pieceColor = gameState.turn
     
     gameState.pieces
     |> Seq.filter belongsToPlayer
@@ -607,50 +625,50 @@ let playerActions (Player playerColor) gameState =
 
 
 // given a player & a gameState, it returns a move result for that player.
-let rec makePlayerMoveResultWithCapabilities (Player playerColor) gameState =
-    let displayInfo = getDisplayInfo gameState (Player playerColor)
-    let t = playerActions (Player playerColor) gameState
+let rec makePlayerMoveResultWithCapabilities gameState =
+    let displayInfo = getDisplayInfo gameState
+    let t = playerActions gameState
     let playerMovementCapabilities =
         t
-        |> Seq.map (makeNextMoveInfo (Player playerColor) gameState)
+        |> Seq.map (makeNextMoveInfo gameState)
         |> Seq.toList
 
     moveResultFor displayInfo playerMovementCapabilities
 
-and makeNextMoveInfo player gameState playerAction =
+and makeNextMoveInfo gameState playerAction =
     // the capability has the player & action to take & gameState baked in
-    let executeFn() = executePlayerAction player gameState playerAction
+    let executeFn() = executePlayerAction gameState playerAction
     { action = playerAction; execute = executeFn }
 
 // player makes a move
-and executePlayerAction player gameState playerAction: PlayerActionOutcome =
+and executePlayerAction gameState playerAction: PlayerActionOutcome =
     match playerAction with
-    | MovePiece (_, spos, _, tpos) ->
+    | MovePiece ply ->
+        let otherPlayer = opponent gameState.turn
         let newGameState =
             { gameState with
-                pieces = gameState.pieces |> rawMoveAndReplace (spos, tpos)
+                turn = otherPlayer
+                pieces = gameState.pieces |> rawMoveAndReplace (plyPositions ply)
             }
 
-        if newGameState |> isCheckmateTo player then
+        if newGameState |> isCheckmateTo gameState.turn then
             let displayInfo = getFinalDisplayInfo newGameState
-            WonByCheckmate (displayInfo, player)
+            WonByCheckmate (displayInfo, gameState.turn)
         // TODO: Tie and abandonment
         else
-            let otherPlayer = opponent player
-            makePlayerMoveResultWithCapabilities otherPlayer newGameState
+            makePlayerMoveResultWithCapabilities newGameState
     | Resign ->
         let displayInfo = getFinalDisplayInfo gameState
-        LostByResignation (displayInfo, (opponent player))
+        LostByResignation (displayInfo, (opponent gameState.turn))
     | OfferDraw ->
-        let displayInfo = getDisplayInfo gameState player
-
-        let t = playerActions player gameState
+        let displayInfo = getDisplayInfo gameState
+        let t = playerActions gameState
         let playerMovementCapabilities =
             t
-            |> Seq.map (makeNextMoveInfo player gameState)
+            |> Seq.map (makeNextMoveInfo gameState)
             |> Seq.toList
 
-        DrawOffer (displayInfo, player, playerMovementCapabilities)
+        DrawOffer (displayInfo, gameState.turn, playerMovementCapabilities)
 
 
 let newChessGame =
@@ -689,17 +707,16 @@ let newChessGame =
         placedPiece Black Rook   H8
     ]
 
-    makePlayerMoveResultWithCapabilities (Player White) {
+    makePlayerMoveResultWithCapabilities {
+        turn = White
         pieces = initialPieces
         whitePlayerCastleState = {
-                                    kingHasMoved = false
-                                    kingsRookHasMoved = false
-                                    queensRookHasMoved = false
+                                    canCastleKingside = true
+                                    canCastleQueenside = true
                                  }
         blackPlayerCastleState = {
-                                    kingHasMoved = false
-                                    kingsRookHasMoved = false
-                                    queensRookHasMoved = false
+                                    canCastleKingside = true
+                                    canCastleQueenside = true
                                  }
         enPassantPawn = None
     }
