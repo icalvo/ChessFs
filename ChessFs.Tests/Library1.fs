@@ -28,7 +28,22 @@ module ``be ascending tests`` =
         test
             <@ pieceReaches2 WhitePawn C2 |> simplify2 =
             [([B3], Capture); ([C3; C4], Move); ([D3], Capture)]@>
-
+        test <@
+                pieceReaches2 BlackPawn E7 |> simplify2 = [
+                    ([D6], Capture);
+                    ([E5; E6], Move);
+                    ([F6], Capture)]
+        @>
+        test <@
+                pieceReaches2 BlackKnight B8 |> simplify2 = [
+                    ([A6], Move);
+                    ([A6], Capture);
+                    ([C6], Move);
+                    ([C6], Capture);
+                    ([D7], Move);
+                    ([D7], Capture);
+                    ]
+        @>
     let result3 = 
         List.map playerActionToAlgebraic
         >> List.sort
@@ -48,6 +63,7 @@ module ``be ascending tests`` =
     [<Fact>]
     let ``Promoting available actions``() =
         test <@
+
                 makePlayerMoveResultWithCapabilities {
                     turn = White
                     pieces =
@@ -58,7 +74,7 @@ module ``be ascending tests`` =
                     blackPlayerCastleState = cannotCastle
                     enPassantPawn = None
                 }
-                |> result = ["c8=B"; "c8=N"; "c8=Q"; "c8=R"; "d"; "r"] 
+                |> result = [":d"; ":r"; "c8=B"; "c8=N"; "c8=Q"; "c8=R"] 
         @>
 
     [<Fact>]
@@ -75,7 +91,7 @@ module ``be ascending tests`` =
                     blackPlayerCastleState = cannotCastle
                     enPassantPawn = None
                 }
-                |> result = ["c8=B"; "c8=N"; "c8=Q"; "c8=R"; "cxb8=B"; "cxb8=N"; "cxb8=Q"; "cxb8=R"; "d"; "r"]
+                |> result = [":d"; ":r"; "c8=B"; "c8=N"; "c8=Q"; "c8=R"; "cxb8=B"; "cxb8=N"; "cxb8=Q"; "cxb8=R"]
         @>
     
     let gameStateAfterE4 = {
@@ -123,7 +139,8 @@ module ``be ascending tests`` =
     let ``Black available actions``() =
         test <@
                 makePlayerMoveResultWithCapabilities gameStateAfterE4
-                |> result = ["c8=B"; "c8=N"; "c8=Q"; "c8=R"; "cxb8=B"; "cxb8=N"; "cxb8=Q"; "cxb8=R"; "d"; "r"]
+                |> result = [":d"; ":r"; "Na6"; "Nc6"; "Nf6"; "Nh6"; "a5"; "a6"; "b5"; "b6"; "c5"; "c6"; "d5"; "d6"; "e5"; "e6"; "f5";
+ "f6"; "g5"; "g6"; "h5"; "h6"]
         @>
 
     [<Fact>]
@@ -131,5 +148,16 @@ module ``be ascending tests`` =
         test <@
                 playerActions gameStateAfterE4
                 |> Seq.toList
-                |> result3 = ["c8=B"; "c8=N"; "c8=Q"; "c8=R"; "cxb8=B"; "cxb8=N"; "cxb8=Q"; "cxb8=R"; "d"; "r"]
+                |> result3 = [":d"; ":r"; "Na6"; "Nc6"; "Nf6"; "Nh6"; "a5"; "a6"; "b5"; "b6"; "c5"; "c6"; "d5"; "d6"; "e5"; "e6"; "f5";
+ "f6"; "g5"; "g6"; "h5"; "h6"]
         @>
+
+    [<Fact>]
+    let ``Black piece capabilities``() =
+        test <@
+                pieceCapabilities gameStateAfterE4 (Piece (Black, Pawn), E7)
+                |> Seq.toList = [
+                    (Piece (Black,Pawn), E7, Move, E6);
+                    (Piece (Black,Pawn), E7, Move, E5)]
+        @>
+

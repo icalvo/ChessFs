@@ -116,8 +116,8 @@ let plyToAlgebraic ply =
 
 let playerActionToAlgebraic = function
     | MovePiece ply -> plyToAlgebraic ply
-    | Resign -> "r"
-    | OfferDraw -> "d"
+    | Resign -> ":r"
+    | OfferDraw -> ":d"
 
 // CONSOLE OUTPUT
 
@@ -163,6 +163,7 @@ let printActions =
  
 let printDisplayInfo displayInfo = 
     board squareToString displayInfo.board |> printBoard
+    if displayInfo.isCheck then printfn "CHECK!" else printfn "NOCHECK!"
     displayInfo.playerToMove
     |> Option.map (fun p -> printfn "%A moves" p) |> ignore
     printfn "" 

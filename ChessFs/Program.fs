@@ -1,29 +1,40 @@
-﻿open Chess
+﻿open System
+open Chess
 open Output
-open System
 open GameConsole
 
-let askExecutableAction input availableActions =
+let findExecutableAction input availableActions =
         availableActions
         |> List.filter (fun { action = m } -> playerActionToAlgebraic m = input)
         |> List.tryHead
+
+let findActionResult input availableActions = 
+    let foundAction = findExecutableAction input availableActions
+
+    foundAction |> Option.bind (fun action -> Some (action.execute()))
+
+let next algebraicMove =
+    function
+    | Some (PlayerMoved (_, availableActions)) ->
+            findActionResult algebraicMove availableActions
+    | _ -> None
+
+let next2 game algebraicMove = next algebraicMove game
 
 /// Given that the user has not quit, attempt to parse
 /// the input text into a index and then find the move
 /// corresponding to that index
 let askActionResult input availableActions oldActionResult = 
-    match (askExecutableAction input availableActions) with
-    | Some executableAction ->
-        executableAction.execute()  
+    match (findActionResult input availableActions) with
+    | Some outcome -> outcome
     | None ->
         printfn "...%s is not a valid move. Try again" input
-        // displayInfo |> displayCells
         oldActionResult
 
 /// Ask the user for input. Process the string entered as 
 /// a move index or a "quit" command
 let askProgramAction availableActions input actionResult = 
-    printfn "Enter an int corresponding to a displayed move or q to quit:"
+    printfn "Enter an action or q to quit:"
 
     if input = "q" then
         Exiting
@@ -57,17 +68,23 @@ let handleChessActionOutcome formerPlayerActionOutcome input =
 
 [<EntryPoint>]
 let main argv =
-    printOutcome newChessGame
-    let initialState = AskingAction newChessGame
+    let input = ["e4";"e5";"f3";"Qh4"]
+    let game2 =
+        input
+        |> List.fold next2 (Some newChessGame)
+        |> Option.get
+
+    printOutcome game2
+    let initialState = AskingAction game2
     let isFinish = function
         | Exiting -> true
         | _ -> false
     
-    //let input = ["e4";"e5"]
+
         //|> Seq.append argv
     let input = consoleInput
 
-    let chessTransition = gameTransition newChessGame handleChessActionOutcome
+    let chessTransition = gameTransition game2 handleChessActionOutcome
 
     ignore <| stateMachine chessTransition isFinish initialState input
     printfn "Bye!"

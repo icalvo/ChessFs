@@ -193,14 +193,14 @@ let kingReaches pos =
 
 let knightReaches pos =
     [
-        Up >?> Left >?> Up;
-        Up >?> Left >?> Left;
-        Down >?> Left >?> Left;
-        Down >?> Left >?> Left;
-        Up >?> Right >?> Up;
-        Up >?> Right >?> Right;
-        Down >?> Right >?> Right;
-        Down >?> Right >?> Right;
+        Up >?> Up >?> Left;
+        Up >?> Up >?> Right;
+        Down >?> Down >?> Left;
+        Down >?> Down >?> Right;
+        Right >?> Right >?> Up;
+        Right >?> Right >?> Down;
+        Left >?> Left >?> Up;
+        Left >?> Left >?> Down;
     ]
     |> List.apply pos
     |> List.choose id
@@ -248,6 +248,7 @@ type Piece = Piece of Color * Shape
 
 let WhitePawn = Piece (White, Pawn)
 let BlackPawn = Piece (Black, Pawn)
+let BlackKnight = Piece (Black, Knight)
 
 type Square = 
     | PieceSquare of Piece * Position
@@ -324,19 +325,24 @@ let blackPawnMoveReaches =    pawnMoveReaches    R7 Down
 let blackPawnCaptureReaches = pawnCaptureReaches    Down
 
 let pieceReaches2 piece pos =
-    let fn2 ls =
-        ls |> List.collect (fun (reachesfn, act) -> pos |> reachesfn |> List.map (fun (reach) -> (reach, act)))
+    
+    let applyReaches (reachesfn, act) =
+        pos
+        |> reachesfn
+        |> List.map (fun (reach) -> (reach, act))
+
+    let fn2 = List.collect applyReaches
 
     match piece with
     | Piece (White, Pawn) ->
         match pos with
         | (_, R7) ->
             fn2 [
-                (whitePawnMoveReaches, Promote);
+                (whitePawnMoveReaches   , Promote);
                 (whitePawnCaptureReaches, CaptureAndPromote)]
         | (_, R5) ->
             fn2 [
-                (whitePawnMoveReaches, Move);
+                (whitePawnMoveReaches   , Move);
                 (whitePawnCaptureReaches, Capture);
                 (whitePawnCaptureReaches, EnPassant)]
         | _ ->
@@ -347,19 +353,20 @@ let pieceReaches2 piece pos =
     | Piece (Black, Pawn) ->
         match pos with
         | (_, R2) ->
-            [
-                //(blackPawnMoveReaches    pos, [ Promote           ]);
-                //(blackPawnCaptureReaches pos, [ CaptureAndPromote ]);
+            fn2 [
+                (blackPawnMoveReaches   , Promote);
+                (blackPawnCaptureReaches, CaptureAndPromote);
             ]
         | (_, R4) ->
-            [
-                //(blackPawnMoveReaches    pos, [ Move      ]);
-                //(blackPawnCaptureReaches pos, [ Capture; EnPassant ]);
+            fn2 [
+                (blackPawnMoveReaches   , Move     );
+                (blackPawnCaptureReaches, Capture  );
+                (blackPawnCaptureReaches, EnPassant);
             ]
         | _ ->
-            [
-                //(blackPawnMoveReaches    pos, [ Move    ]);
-                //(blackPawnCaptureReaches pos, [ Capture ]);
+            fn2 [
+                (blackPawnMoveReaches   , Move   );
+                (blackPawnCaptureReaches, Capture);
             ]
     | Piece (_, Knight) -> fn2 [(knightReaches, Move);(knightReaches, Capture)]
     | Piece (_, Bishop) -> fn2 [(bishopReaches, Move);(bishopReaches, Capture)]
@@ -369,14 +376,15 @@ let pieceReaches2 piece pos =
         fn2 [
             (kingReaches, Move);
             (kingReaches, Capture);
-            (kingCastleToKingReach Right, CastleKingSide);
-            (kingCastleToQueenReach Left, CastleQueenSide)
+            (kingCastleToKingReach  Right, CastleKingSide);
+            (kingCastleToQueenReach Left , CastleQueenSide)
         ]
     | Piece (Black, King  ) ->
-        [
-            //(kingReaches pos                 , [ Move; Capture   ]);
-            //(kingCastleToKingReach  Left pos , [ CastleKingSide  ]);
-            //(kingCastleToQueenReach Right pos, [ CastleQueenSide ]);
+        fn2 [
+            (kingReaches, Move);
+            (kingReaches, Capture);
+            (kingCastleToKingReach  Left , CastleKingSide);
+            (kingCastleToQueenReach Right, CastleQueenSide)
         ]
 
 let pieceReaches piece pos =
@@ -504,9 +512,14 @@ let uncheckedPieceCapabilities game (piece, sourcePos) =
 
 /// <summary>Determines the attacks a piece of the game is making.</summary>
 let attacksBy game placedPiece =
-    uncheckedPieceCapabilities game placedPiece
-    |> Seq.filter (fun (_, _, action, _) -> action = Capture || action = CaptureAndPromote)
-    |> Seq.map (fun (_, _, _, pos) -> pos)
+    let result =
+        uncheckedPieceCapabilities game placedPiece
+        |> Seq.filter (fun (_, _, action, _) -> action = Capture || action = CaptureAndPromote)
+        |> Seq.map (fun (_, _, _, pos) -> pos)
+
+    printfn "%A attacks %A" placedPiece (Seq.toList result)
+
+    result
 
 /// <summary>Determines the attacks a piece of the game is making.</summary>
 let attacks col game = 
@@ -514,10 +527,14 @@ let attacks col game =
     |> Seq.filter (fun (Piece (pieceColor, _), _) -> pieceColor = col)
     |> Seq.collect (attacksBy game)
 
-let isAttacked color game targetPosition =
-    game
-    |> attacks color
-    |> Seq.contains targetPosition
+let isAttackedBy attackingColor game targetPosition =
+    printfn "Does some %A piece attack %A?" attackingColor targetPosition
+    let result =
+        game
+        |> attacks attackingColor
+        |> Seq.contains targetPosition
+    printfn "%A" result
+    result
 
 /// <summary>Basic move operation. It simply empties the source pos and sets the target pos with the
 /// same the source had before.</summary>
@@ -530,7 +547,7 @@ let isCheck color game =
     game.pieces
     |> Seq.tryFind (fun (piece, _) -> piece = Piece (color, King))
     |> Option.map (fun (_, pos) -> pos)
-    |> Option.map (isAttacked color game)
+    |> Option.map (isAttackedBy (opposite color) game)
     |> defaultArg <| false
 
 let pieceCapabilities game (piece, sourcePos) =
@@ -547,6 +564,7 @@ let pieceCapabilities game (piece, sourcePos) =
 type DisplayInfo = {
     board: Square[,]
     playerToMove: Color option
+    isCheck: bool
 }
 
 type DrawTypes =
@@ -586,6 +604,7 @@ let getFinalDisplayInfo game =
             game.pieces @ (File.fromInt f, Rank.fromInt r)
         )
         playerToMove = None
+        isCheck = isCheck game.turn game
     }
 
 let getDisplayInfo game =
@@ -594,6 +613,7 @@ let getDisplayInfo game =
             game.pieces @ (File.fromInt f, Rank.fromInt r)
         )
         playerToMove = Some game.turn
+        isCheck = isCheck game.turn game
     }
 
 let private isCheckmateTo player gameState =
@@ -604,13 +624,8 @@ let private isCheckmateTo player gameState =
 
 let private isGameTied player gameState = false
 
-/// <summary>Return the move result case for a player.</summary>
-let moveResultFor displayInfo nextMoves = 
-    PlayerMoved (displayInfo, nextMoves)
-
 // given a player & a gameState, it returns the possible player actions.
 let playerActions gameState =
-    printfn "Calculating playerActions..."
     let getCapabilities (sourcePiece, sourcePos) =
         pieceCapabilities gameState (sourcePiece, sourcePos)
         |> Seq.collect (toPlies)
@@ -632,8 +647,8 @@ let rec makePlayerMoveResultWithCapabilities gameState =
         t
         |> Seq.map (makeNextMoveInfo gameState)
         |> Seq.toList
-
-    moveResultFor displayInfo playerMovementCapabilities
+    
+    PlayerMoved (displayInfo, playerMovementCapabilities)
 
 and makeNextMoveInfo gameState playerAction =
     // the capability has the player & action to take & gameState baked in
