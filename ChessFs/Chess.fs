@@ -329,6 +329,7 @@ let pieceReaches2 piece pos =
     let applyReaches (reachesfn, act) =
         pos
         |> reachesfn
+        |> List.filter (not << Seq.isEmpty)
         |> List.map (fun (reach) -> (reach, act))
 
     let fn2 = List.collect applyReaches
@@ -481,9 +482,6 @@ let canExecute game sourcePiece sourcePos targetPos action =
     | _ ->
         false
 
-let reachIsOpen = function
-    | Some (_, _, Move, _) -> true
-    | _ -> false
 
 let toPlies (Piece (color, sh), s, a, t) =
     let p = Piece (color, sh)
@@ -496,30 +494,33 @@ let toPlies (Piece (color, sh), s, a, t) =
     | Promote -> [ Queen; Rook; Bishop; Knight ] |> List.map (fun shape -> Ply.Promote (p, s, t, shape))
     | CaptureAndPromote -> [ Queen; Rook; Bishop; Knight ] |> List.map (fun shape -> Ply.CaptureAndPromote (p, s, t, shape))
 
-let evaluateSquare game actionToAnalyze (sourcePiece, sourcePos) targetPos =
+let evaluateSquare game actionToAnalyze sourcePiece sourcePos targetPos =
     let can = canExecute game sourcePiece sourcePos targetPos actionToAnalyze
-    if can then Some (sourcePiece, sourcePos, actionToAnalyze, targetPos) else None
+    let canMove = canExecute game sourcePiece sourcePos targetPos Move
+    if can then Some (sourcePiece, sourcePos, actionToAnalyze, targetPos)
+    elif canMove then Some (sourcePiece, sourcePos, Move, targetPos)
+    else None
 
-let reachCapabilities game (piece, sourcePos) actionToAnalyze reach =
+let reachCapabilities game piece sourcePos actionToAnalyze reach =
+    let actionIs (actionType:PieceAction) = function
+        | Some (_, _, act, _) -> act = actionType
+        | _ -> false
+
     reach
-    |> Seq.map (evaluateSquare game actionToAnalyze (piece, sourcePos))
-    |> Seq.takeWhilePlusOne reachIsOpen
+    |> Seq.map (evaluateSquare game actionToAnalyze piece sourcePos)
+    |> Seq.takeWhilePlusOne (actionIs Move)
+    |> Seq.filter (actionIs actionToAnalyze)
     |> Seq.filterNones
 
-let uncheckedPieceCapabilities game (piece, sourcePos) =
+let uncheckedPieceCapabilities game piece sourcePos =
     pieceReaches2 piece sourcePos
-    |> Seq.collect (fun (r, a) -> reachCapabilities game (piece, sourcePos) a r)
+    |> Seq.collect (fun (r, a) -> reachCapabilities game piece sourcePos a r)
 
 /// <summary>Determines the attacks a piece of the game is making.</summary>
-let attacksBy game placedPiece =
-    let result =
-        uncheckedPieceCapabilities game placedPiece
-        |> Seq.filter (fun (_, _, action, _) -> action = Capture || action = CaptureAndPromote)
-        |> Seq.map (fun (_, _, _, pos) -> pos)
-
-    printfn "%A attacks %A" placedPiece (Seq.toList result)
-
-    result
+let attacksBy game (piece, position) =
+    uncheckedPieceCapabilities game piece position
+    |> Seq.filter (fun (_, _, action, _) -> action = Capture || action = CaptureAndPromote)
+    |> Seq.map (fun (_, _, _, pos) -> pos)
 
 /// <summary>Determines the attacks a piece of the game is making.</summary>
 let attacks col game = 
@@ -528,13 +529,9 @@ let attacks col game =
     |> Seq.collect (attacksBy game)
 
 let isAttackedBy attackingColor game targetPosition =
-    printfn "Does some %A piece attack %A?" attackingColor targetPosition
-    let result =
-        game
-        |> attacks attackingColor
-        |> Seq.contains targetPosition
-    printfn "%A" result
-    result
+    game
+    |> attacks attackingColor
+    |> Seq.contains targetPosition
 
 /// <summary>Basic move operation. It simply empties the source pos and sets the target pos with the
 /// same the source had before.</summary>
@@ -558,7 +555,7 @@ let pieceCapabilities game (piece, sourcePos) =
         }
         |> (not << isCheck color)
 
-    uncheckedPieceCapabilities game (piece, sourcePos)
+    uncheckedPieceCapabilities game piece sourcePos
     |> Seq.filter checkFilter
 
 type DisplayInfo = {
@@ -638,17 +635,33 @@ let playerActions gameState =
     |> Seq.collect getCapabilities
     |> Seq.append [Resign; OfferDraw]
 
+let nextGameState ply gameState =
+    let otherPlayer = opponent gameState.turn
+    { gameState with
+        turn = otherPlayer
+        pieces = gameState.pieces |> rawMoveAndReplace (plyPositions ply)
+    }
 
 // given a player & a gameState, it returns a move result for that player.
 let rec makePlayerMoveResultWithCapabilities gameState =
     let displayInfo = getDisplayInfo gameState
-    let t = playerActions gameState
-    let playerMovementCapabilities =
-        t
-        |> Seq.map (makeNextMoveInfo gameState)
-        |> Seq.toList
+    let playerActions = playerActions gameState
+    let actionIsMove = function
+        | MovePiece _ -> true
+        | _ -> false
+
+    let canMove = playerActions |> Seq.exists actionIsMove
+    if canMove then
+        let playerMovementCapabilities =
+            playerActions
+            |> Seq.map (makeNextMoveInfo gameState)
+            |> Seq.toList
     
-    PlayerMoved (displayInfo, playerMovementCapabilities)
+    
+        PlayerMoved (displayInfo, playerMovementCapabilities)
+    else
+        let displayInfo = getFinalDisplayInfo gameState
+        WonByCheckmate (displayInfo, gameState.turn)
 
 and makeNextMoveInfo gameState playerAction =
     // the capability has the player & action to take & gameState baked in
@@ -659,19 +672,8 @@ and makeNextMoveInfo gameState playerAction =
 and executePlayerAction gameState playerAction: PlayerActionOutcome =
     match playerAction with
     | MovePiece ply ->
-        let otherPlayer = opponent gameState.turn
-        let newGameState =
-            { gameState with
-                turn = otherPlayer
-                pieces = gameState.pieces |> rawMoveAndReplace (plyPositions ply)
-            }
-
-        if newGameState |> isCheckmateTo gameState.turn then
-            let displayInfo = getFinalDisplayInfo newGameState
-            WonByCheckmate (displayInfo, gameState.turn)
-        // TODO: Tie and abandonment
-        else
-            makePlayerMoveResultWithCapabilities newGameState
+        let newGameState = nextGameState ply gameState
+        makePlayerMoveResultWithCapabilities newGameState
     | Resign ->
         let displayInfo = getFinalDisplayInfo gameState
         LostByResignation (displayInfo, (opponent gameState.turn))
@@ -685,8 +687,7 @@ and executePlayerAction gameState playerAction: PlayerActionOutcome =
 
         DrawOffer (displayInfo, gameState.turn, playerMovementCapabilities)
 
-
-let newChessGame =
+let initialGameState =
     let initialPieces = [
         placedPiece White Rook   A1
         placedPiece White Knight B1
@@ -722,7 +723,7 @@ let newChessGame =
         placedPiece Black Rook   H8
     ]
 
-    makePlayerMoveResultWithCapabilities {
+    {
         turn = White
         pieces = initialPieces
         whitePlayerCastleState = {
@@ -735,3 +736,5 @@ let newChessGame =
                                  }
         enPassantPawn = None
     }
+
+let newChessGame = makePlayerMoveResultWithCapabilities initialGameState

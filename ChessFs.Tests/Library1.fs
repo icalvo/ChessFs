@@ -94,47 +94,15 @@ module ``be ascending tests`` =
                 |> result = [":d"; ":r"; "c8=B"; "c8=N"; "c8=Q"; "c8=R"; "cxb8=B"; "cxb8=N"; "cxb8=Q"; "cxb8=R"]
         @>
     
-    let gameStateAfterE4 = {
-                    turn = Black
-                    pieces =
-                        [
-                            placedPiece White Rook   A1
-                            placedPiece White Knight B1
-                            placedPiece White Bishop C1
-                            placedPiece White Queen  D1
-                            placedPiece White King   E1
-                            placedPiece White Bishop F1
-                            placedPiece White Knight G1
-                            placedPiece White Rook   H1
-                            placedPiece White Pawn   A2
-                            placedPiece White Pawn   B2
-                            placedPiece White Pawn   C2
-                            placedPiece White Pawn   D2
-                            placedPiece White Pawn   E4
-                            placedPiece White Pawn   F2
-                            placedPiece White Pawn   G2
-                            placedPiece White Pawn   H2
-                            placedPiece Black Pawn   A7
-                            placedPiece Black Pawn   B7
-                            placedPiece Black Pawn   C7
-                            placedPiece Black Pawn   D7
-                            placedPiece Black Pawn   E7
-                            placedPiece Black Pawn   F7
-                            placedPiece Black Pawn   G7
-                            placedPiece Black Pawn   H7
-                            placedPiece Black Rook   A8
-                            placedPiece Black Knight B8
-                            placedPiece Black Bishop C8
-                            placedPiece Black Queen  D8
-                            placedPiece Black King   E8
-                            placedPiece Black Bishop F8
-                            placedPiece Black Knight G8
-                            placedPiece Black Rook   H8
-                        ]
-                    whitePlayerCastleState = cannotCastle
-                    blackPlayerCastleState = cannotCastle
-                    enPassantPawn = None
-                }
+    let gameStateAfterE4 = initialGameState |> nextGameState (Ply.Move (WhitePawn, E2, E4))
+
+    let gameStateWithCheck =
+        initialGameState
+        |> nextGameState (Ply.Move (WhitePawn, E2, E4))
+        |> nextGameState (Ply.Move (BlackPawn, E7, E5))
+        |> nextGameState (Ply.Move (WhitePawn, F2, F3))
+        |> nextGameState (Ply.Move (Piece (Black, Queen), D8, H4))
+
     [<Fact>]
     let ``Black available actions``() =
         test <@

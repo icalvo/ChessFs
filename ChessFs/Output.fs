@@ -163,7 +163,8 @@ let printActions =
  
 let printDisplayInfo displayInfo = 
     board squareToString displayInfo.board |> printBoard
-    if displayInfo.isCheck then printfn "CHECK!" else printfn "NOCHECK!"
+    if displayInfo.isCheck && Option.isSome displayInfo.playerToMove then
+        printfn "CHECK!"
     displayInfo.playerToMove
     |> Option.map (fun p -> printfn "%A moves" p) |> ignore
     printfn "" 

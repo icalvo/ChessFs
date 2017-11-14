@@ -68,23 +68,17 @@ let handleChessActionOutcome formerPlayerActionOutcome input =
 
 [<EntryPoint>]
 let main argv =
-    let input = ["e4";"e5";"f3";"Qh4"]
-    let game2 =
-        input
-        |> List.fold next2 (Some newChessGame)
-        |> Option.get
+    let game = newChessGame
 
-    printOutcome game2
-    let initialState = AskingAction game2
+    printOutcome game
+    let initialState = AskingAction game
     let isFinish = function
         | Exiting -> true
         | _ -> false
-    
 
-        //|> Seq.append argv
-    let input = consoleInput
+    let input =Seq.append ("e4 e5 Bc4 Nc6 Qh5 Nf6 Qxf7".Split(' ')) consoleInput
 
-    let chessTransition = gameTransition game2 handleChessActionOutcome
+    let chessTransition = gameTransition game handleChessActionOutcome
 
     ignore <| stateMachine chessTransition isFinish initialState input
     printfn "Bye!"
