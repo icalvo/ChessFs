@@ -30,6 +30,16 @@ type Rank =
         | 1 -> R7
         | 0 -> R8
         | _ -> failwith "Invalid rank index"
+    member x.toInt =
+        match x with
+        | R1 -> 7
+        | R2 -> 6
+        | R3 -> 5
+        | R4 -> 4
+        | R5 -> 3
+        | R6 -> 2
+        | R7 -> 1
+        | R8 -> 0
 
 type File = A | B | C | D | E | F | G | H
 with
@@ -44,6 +54,16 @@ with
         | 6 -> G
         | 7 -> H
         | _ -> failwith "Invalid file index"
+    member x.toInt =
+        match x with
+        | A -> 0
+        | B -> 1
+        | C -> 2
+        | D -> 3
+        | E -> 4
+        | F -> 5
+        | G -> 6
+        | H -> 7
 
 let A1 = (A, R1)
 let A2 = (A, R2)

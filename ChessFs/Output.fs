@@ -65,13 +65,6 @@ let positionToAlgebraic ((f, r):Position) =
 let squareToString = function
     | EmptySquare _ -> "  "
     | PieceSquare (Piece (color, shape), _) -> sprintf "%s%s" color.toString shape.toString
-    
-let board toString displayInfo =
-    let stringMatrix = displayInfo |> Array2D.map toString
-
-    [|0..7|]
-    |> Array.map (fun i -> stringMatrix.[i, *])
-    |> Array.map (String.concat "|")
 
 let squareWithActions capList square =
     let capabilityAt pos = capList |> Seq.tryFind (fun (_, p) -> p = pos)
@@ -119,36 +112,69 @@ let playerActionToAlgebraic = function
     | Resign -> ":r"
     | OfferDraw -> ":d"
 
-// CONSOLE OUTPUT
-
-let cprintf c fmt = 
-    kprintf
-        (fun s ->
-            let old = Console.ForegroundColor
-            try
-              Console.ForegroundColor <- c;
-              Console.Write s
-            finally
-              Console.ForegroundColor <- old)
-        fmt
-
-let cprintfn c fmt =
-    cprintf c fmt
-    printfn ""
-
 let printPositions =
     List.map positionToAlgebraic >> List.iter (printf "%A")
 
-let printBoard b = 
-    let printRow i x = printfn "%i|%s|%i" (8-i) x (8-i)
+let cellColor (file: File, rank: Rank) =
+    match (file.toInt + rank.toInt) % 2 with
+    | 0 -> White
+    | 1 -> Black
+    | _ -> failwith "Cannot happen"
+
+// CONSOLE OUTPUT
+
+let cprintf fc bc fmt = 
+    kprintf
+        (fun s ->
+            let oldfc = Console.ForegroundColor
+            let oldbc = Console.BackgroundColor
+            try
+              Console.ForegroundColor <- fc;
+              Console.BackgroundColor <- bc;
+              Console.Write s
+            finally
+              Console.ForegroundColor <- oldfc;
+              Console.BackgroundColor <- oldbc)
+        fmt
+
+let cprintfn fc bc fmt =
+    cprintf fc bc fmt
+    printfn ""
+
+let cellBackground (file: File, rank: Rank) =
+    match (file.toInt + rank.toInt) % 2 with
+    | 0 -> ConsoleColor.Green
+    | 1 -> ConsoleColor.DarkGreen
+    | _ -> failwith "Cannot happen"
+
+let cellForeground =
+    function
+    | PieceSquare (Piece (White, _), _) -> ConsoleColor.White
+    | PieceSquare (Piece (Black, _), _) -> ConsoleColor.Black
+    | EmptySquare _ -> ConsoleColor.Black
+
+let printSquare sq =
+    cprintf (cellForeground sq) (cellBackground (position sq)) "%s" (squareToString sq)
+
+let printBoard2 (b: Square[,]) =
+    let iterRow fn row =
+        [|0..7|]
+        |> Array.map (fun i -> b.[row, i])
+        |> Array.iter fn
+
+
+    let printSquareRow i =
+        printf "%i" (8-i)
+        iterRow printSquare i
+        printfn "%i" (8-i)
     
     let filesHeader =
         [|"A"; "B"; "C"; "D"; "E"; "F"; "G"; "H"|]
-        |> Array.map (fun x -> x.PadLeft(3, ' '))
+        |> Array.map (fun x -> x.PadLeft(2, ' '))
         |> String.concat ""
 
     printfn "%s" filesHeader
-    b |> Array.iteri printRow
+    [|0..7|] |> Array.iter printSquareRow
     printfn "%s" filesHeader
 
 let csl toString seq = seq |> Seq.map toString |> String.concat ", "
@@ -161,8 +187,8 @@ let printActions =
     csl (fun moveInfo -> playerActionToAlgebraic moveInfo.action)
     >> printfn "%s"
  
-let printDisplayInfo displayInfo = 
-    board squareToString displayInfo.board |> printBoard
+let printDisplayInfo displayInfo =
+    printBoard2 displayInfo.board
     if displayInfo.isCheck && Option.isSome displayInfo.playerToMove then
         printfn "CHECK!"
     displayInfo.playerToMove

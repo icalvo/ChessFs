@@ -3,9 +3,9 @@ open Chess
 open Output
 open GameConsole
 
-let findExecutableAction input availableActions =
+let findExecutableAction (input:string) availableActions =
         availableActions
-        |> List.filter (fun { action = m } -> playerActionToAlgebraic m = input)
+        |> List.filter (fun { action = m } -> (playerActionToAlgebraic m).ToLowerInvariant() = input.ToLowerInvariant())
         |> List.tryHead
 
 let findActionResult input availableActions = 
@@ -76,7 +76,11 @@ let main argv =
         | Exiting -> true
         | _ -> false
 
-    let input =Seq.append ("e4 e5 Bc4 Nc6 Qh5 Nf6 Qxf7".Split(' ')) consoleInput
+    // let scholarsMate = "e4 e5 Bc4 Nc6 Qh5 Nf6 Qxf7".Split(' ')
+    // let extraInput = scholarsMate;
+    let extraInput = argv;
+
+    let input = Seq.append extraInput consoleInput
 
     let chessTransition = gameTransition game handleChessActionOutcome
 
