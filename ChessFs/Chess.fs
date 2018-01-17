@@ -154,16 +154,21 @@ let plyPositions = function
     | Promote (_, source, target, _) -> (source, target)
     | CaptureAndPromote (_, source, target, _) -> (source, target)
 
+type BoardChange =
+    | MovePiece of Position * Position
+    | RemovePiece of Position
+    | AddPiece of Color * Shape * Position
+
 let plyBoardChanges = function
-    | Move (_, source, target) -> [(source, target)]
-    | Capture (_, source, target) -> [(source, target)]
-    | EnPassant (_, source, target) -> [(source, target)]
-    | CastleKingSide White -> [(E1, G1);(H1, F1)]
-    | CastleQueenSide White -> [(E1, C1);(A1, D1)]
-    | CastleKingSide Black -> [(E8, G8);(H8, F8)]
-    | CastleQueenSide Black -> [(E8, C8);(A8, D8)]
-    | Promote (_, source, target, _) -> [(source, target)]
-    | CaptureAndPromote (_, source, target, _) -> [(source, target)]
+    | Move (_, source, target) -> [MovePiece (source, target)]
+    | Capture (_, source, target) -> [MovePiece (source, target)]
+    | EnPassant (_, source, target) -> [MovePiece (source, target)]
+    | CastleKingSide White -> [MovePiece (E1, G1); MovePiece (H1, F1)]
+    | CastleQueenSide White -> [MovePiece (E1, C1); MovePiece (A1, D1)]
+    | CastleKingSide Black -> [MovePiece (E8, G8); MovePiece (H8, F8)]
+    | CastleQueenSide Black -> [MovePiece (E8, C8); MovePiece (A8, D8)]
+    | Promote (Piece (color, _), source, target, shape) -> [RemovePiece source; AddPiece (color, shape, target)]
+    | CaptureAndPromote (Piece (color, _), source, target, shape) -> [RemovePiece source; AddPiece (color, shape, target)]
 
 
 let plyCaptureTarget = function
@@ -346,6 +351,9 @@ let isAttackedBy attackingColor game targetPosition =
     |> attacks attackingColor
     |> Seq.contains targetPosition
 
+let private rawBoardChange pieces boardChange =
+    pieces
+
 /// <summary>Basic move operation. It simply empties the source pos and sets the target pos with the
 /// same the source had before.</summary>
 let private rawMoveAndReplace (sourcePos, targetPos) pieces =
@@ -363,7 +371,8 @@ let isCheck color game =
 let opponent = opposite
 
 let rawExecutePly (ply:Ply) pieces =
-    rawMoveAndReplace (plyPositions ply) pieces
+    plyBoardChanges ply
+    |> List.fold rawBoardChange pieces
 
 let nextGameState (ply:Ply) gameState =
     let otherPlayer = opponent gameState.turn
