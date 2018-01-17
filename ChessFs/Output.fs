@@ -1,6 +1,7 @@
 ﻿module Output
 
 open System
+open CoreTypes
 open Chess
 open Microsoft.FSharp.Core.Printf
 
@@ -70,13 +71,13 @@ let squareWithActions capList square =
     let capabilityAt pos = capList |> Seq.tryFind (fun (_, p) -> p = pos)
 
     let actionToString = function
-        | Move -> "m"
-        | Capture -> "x"
-        | EnPassant -> "p"
-        | CastleKingSide -> "k"
-        | CastleQueenSide -> "q"
-        | Promote -> "M"
-        | CaptureAndPromote -> "C"
+        | Move _ -> "m"
+        | Capture _ -> "x"
+        | EnPassant _ -> "p"
+        | CastleKingSide _ -> "k"
+        | CastleQueenSide _ -> "q"
+        | Promote _ -> "M"
+        | CaptureAndPromote _ -> "C"
 
     let squareActionToString =
         square
@@ -93,19 +94,19 @@ let plyToAlgebraic ply =
     let targetPosString = positionToAlgebraic targetPos
     let sourceFile = (fst sourcePos)
     match ply with
-    | Ply.Move (Piece (_, Pawn), _, _) ->
+    | Move (Piece (_, Pawn), _, _) ->
         sprintf "%s" targetPosString
-    | Ply.Move (Piece (_, shape), _, _) ->
+    | Move (Piece (_, shape), _, _) ->
         sprintf "%s%s" shape.toString targetPosString
-    | Ply.Capture (Piece (_, shape), _, _) ->
+    | Capture (Piece (_, shape), _, _) ->
         match shape with
         | Pawn -> sprintf "%sx%s" sourceFile.toAlgebraic targetPosString
         | _ -> sprintf "%sx%s" shape.toString targetPosString
-    | Ply.EnPassant _ -> sprintf "%sx%s" sourceFile.toAlgebraic targetPosString
-    | Ply.CastleKingSide _ -> "O-O"
-    | Ply.CastleQueenSide _ -> "O-O-O"
-    | Ply.Promote (_, _, _, tshape) -> sprintf "%s=%s" targetPosString tshape.toString
-    | Ply.CaptureAndPromote (_, _, _, tshape) -> sprintf "%sx%s=%s" sourceFile.toAlgebraic targetPosString tshape.toString
+    | EnPassant _ -> sprintf "%sx%s" sourceFile.toAlgebraic targetPosString
+    | CastleKingSide _ -> "O-O"
+    | CastleQueenSide _ -> "O-O-O"
+    | Promote (_, _, _, tshape) -> sprintf "%s=%s" targetPosString tshape.toString
+    | CaptureAndPromote (_, _, _, tshape) -> sprintf "%sx%s=%s" sourceFile.toAlgebraic targetPosString tshape.toString
 
 let playerActionToAlgebraic = function
     | MovePiece ply -> plyToAlgebraic ply

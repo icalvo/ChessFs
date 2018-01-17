@@ -30,7 +30,7 @@
         /// Version of Seq.unfold in which the State and T types are the same
         /// </summary>
         /// <param name="nextFn"></param>
-        let unfold2 nextFn =
+        let unfoldSimple nextFn =
             nextFn >> Option.map (fun x -> (x, x)) |> Seq.unfold
 
     module List =

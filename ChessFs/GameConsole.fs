@@ -2,9 +2,6 @@
 
 open System
 
-let stateMachine2 (transition:'State -> (unit -> 'Input) -> 'State) (isFinish:'State -> bool) (initialState:'State) (inputfn:unit -> 'Input): 'State =
-    transition initialState inputfn
-
 let stateMachine (transition:'State -> 'Input -> 'State) (isFinish:'State -> bool) (initialState:'State) (input:seq<'Input>): 'State list =
     input
     |> Seq.scan transition initialState
@@ -16,9 +13,9 @@ type GameState<'a> =
 | AskingToPlayAgain
 | Exiting
 
-let askToPlayAgain newGame input =
+let askToPlayAgain newGame (input: Lazy<string>) =
     printfn "Would you like to play again (y/n)?"
-    match input with
+    match input.Force() with
     | "y" -> 
         AskingAction newGame
     | "n" -> 
@@ -35,9 +32,7 @@ let gameTransition newGame handle state input =
     | Exiting ->
         Exiting
 
-let consoleInput2 () = Console.ReadLine()
-
 let consoleInput =
-    Seq.initInfinite (fun _ -> Console.ReadLine())
+    Seq.initInfinite (fun _ -> lazy(Console.ReadLine()))
     |>  Seq.takeWhile ((<>) null)
 
