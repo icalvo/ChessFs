@@ -73,7 +73,7 @@ let squareWithActions capList square =
     let actionToString = function
         | Move _ -> "m"
         | Capture _ -> "x"
-        | EnPassant _ -> "p"
+        | CaptureEnPassant _ -> "p"
         | CastleKingSide _ -> "k"
         | CastleQueenSide _ -> "q"
         | Promote _ -> "M"
@@ -81,7 +81,7 @@ let squareWithActions capList square =
 
     let squareActionToString =
         square
-        |> position
+        |> Square.position
         |> capabilityAt
         |> Option.map fst
         |> Option.map actionToString
@@ -90,7 +90,7 @@ let squareWithActions capList square =
     (squareToString square) + squareActionToString
 
 let plyToAlgebraic ply =
-    let (sourcePos, targetPos) = plyPositions ply
+    let (sourcePos, targetPos) = Ply.positions ply
     let targetPosString = positionToAlgebraic targetPos
     let sourceFile = (fst sourcePos)
     match ply with
@@ -102,7 +102,7 @@ let plyToAlgebraic ply =
         match shape with
         | Pawn -> sprintf "%sx%s" sourceFile.toAlgebraic targetPosString
         | _ -> sprintf "%sx%s" shape.toString targetPosString
-    | EnPassant _ -> sprintf "%sx%s" sourceFile.toAlgebraic targetPosString
+    | CaptureEnPassant _ -> sprintf "%sx%s" sourceFile.toAlgebraic targetPosString
     | CastleKingSide _ -> "O-O"
     | CastleQueenSide _ -> "O-O-O"
     | Promote (_, _, _, tshape) -> sprintf "%s=%s" targetPosString tshape.toString
@@ -155,7 +155,7 @@ let cellForeground =
     | EmptySquare _ -> ConsoleColor.Black
 
 let printSquare sq =
-    cprintf (cellForeground sq) (cellBackground (position sq)) "%s" (squareToString sq)
+    cprintf (cellForeground sq) (cellBackground (Square.position sq)) "%s" (squareToString sq)
 
 let printBoard2 (b: Square[,]) =
     let iterRow fn row =
@@ -163,12 +163,11 @@ let printBoard2 (b: Square[,]) =
         |> Array.map (fun i -> b.[row, i])
         |> Array.iter fn
 
-
     let printSquareRow i =
         printf "%i" (8-i)
         iterRow printSquare i
         printfn "%i" (8-i)
-    
+
     let filesHeader =
         [|"A"; "B"; "C"; "D"; "E"; "F"; "G"; "H"|]
         |> Array.map (fun x -> x.PadLeft(2, ' '))
@@ -192,7 +191,7 @@ let printDisplayInfo displayInfo =
     printBoard2 displayInfo.board
     if displayInfo.canCastleKingside then
         printfn "Can castle kingside"
-    if displayInfo.canCastleKingside then
+    if displayInfo.canCastleQueenside then
         printfn "Can castle queenside"
     if displayInfo.isCheck && Option.isSome displayInfo.playerToMove then
         printfn "CHECK!"

@@ -2,128 +2,9 @@
 open Utils
 open CoreTypes
 
-// Directions
-let Up        = nextRank
-let UpRight   = nextFile >> Option.bind nextRank
-let Right     = nextFile
-let DownRight = nextFile >> Option.bind prevRank
-let Down      = prevRank
-let DownLeft  = prevFile >> Option.bind prevRank
-let Left      = prevFile
-let UpLeft    = prevFile >> Option.bind nextRank
-
-type Reach = seq<File * Rank> list
-
-let bishopReaches pos: Reach =
-    [ UpRight; DownRight; DownLeft; UpLeft ]
-    |> List.map Seq.unfoldSimple
-    |> List.apply pos
-
-let rookReaches pos: Reach =
-    [ Up; Right; Down; Left ]
-    |> List.map Seq.unfoldSimple
-    |> List.apply pos
-
-let queenReaches pos: Reach =
-    [ bishopReaches; rookReaches ]
-    |> List.apply pos
-    |> List.concat
-
-let kingReaches pos: Reach =
-    [ UpRight; DownRight; DownLeft; UpLeft; Up; Right; Down; Left ]
-    |> List.apply pos
-    |> List.choose id
-    |> List.map Seq.singleton
-
-let knightReaches pos: Reach =
-    [
-        Up >?> Up >?> Left;
-        Up >?> Up >?> Right;
-        Down >?> Down >?> Left;
-        Down >?> Down >?> Right;
-        Right >?> Right >?> Up;
-        Right >?> Right >?> Down;
-        Left >?> Left >?> Up;
-        Left >?> Left >?> Down;
-    ]
-    |> List.apply pos
-    |> List.choose id
-    |> List.map Seq.singleton
-
-let pawnSingleMoveReaches pawnDirection pos: Reach =
-    Seq.unfoldSimple pawnDirection pos
-    |> Seq.take 1
-    |> List.singleton
-
-let pawnDoubleMoveReaches pawnDirection pos: Reach =
-    Seq.unfoldSimple pawnDirection pos
-    |> Seq.take 2
-    |> List.singleton
-
-let pawnCaptureReaches pawnDirection pos: Reach =
-    [
-        pawnDirection >?> Left;
-        pawnDirection >?> Right;
-    ]
-    |> List.apply pos
-    |> List.filterNones
-    |> List.map Seq.singleton
-
-let kingCastleToKingReach castlingDirection (pos: Position): Reach =
-    [ castlingDirection * 2; ]
-    |> List.apply pos
-    |> List.filterNones
-    |> List.map Seq.singleton
-
-let kingCastleToQueenReach castlingDirection (pos: Position): Reach =
-    [ castlingDirection * 3; ]
-    |> List.apply pos
-    |> List.filterNones
-    |> List.map Seq.singleton
-
-let opposite = function
-    | White -> Black
-    | Black -> White
 
 type Piece = Piece of Color * Shape
-
-let WhitePawn = Piece (White, Pawn)
-let BlackPawn = Piece (Black, Pawn)
-let BlackKnight = Piece (Black, Knight)
-
-type Square = 
-    | PieceSquare of Piece * Position
-    | EmptySquare of Position
-
 let placedPiece color shape pos = (Piece (color, shape), pos)
-
-let isEmpty = function
-    | EmptySquare _ -> true
-    | _ -> false
-
-let hasPiece = function
-    | PieceSquare _ -> true
-    | _ -> false
-
-let color = function
-    | PieceSquare (Piece (col, _), _) -> Some col
-    | _ -> None
-
-let piece = function
-    | PieceSquare (piece, _) -> Some piece
-    | _ -> None
-
-let position = function
-    | PieceSquare (_, pos) -> pos
-    | EmptySquare pos -> pos
-
-let at pos placedPieces =
-    placedPieces
-    |> List.map PieceSquare
-    |> List.tryFind (fun square -> position square = pos)
-    |> defaultArg <| EmptySquare pos
-
-let (@) game pos = at pos game
 
 type PlyType =
     | MoveType
@@ -134,110 +15,232 @@ type PlyType =
     | MoveAndPromoteType
     | CaptureAndPromoteType
 
+type Reach = seq<File * Rank> list
+
+module Reach =
+    // Directions
+    let Up        = Rank.next
+    let UpRight   = File.next >> Option.bind Rank.next
+    let Right     = File.next
+    let DownRight = File.next >> Option.bind Rank.prev
+    let Down      = Rank.prev
+    let DownLeft  = File.prev >> Option.bind Rank.prev
+    let Left      = File.prev
+    let UpLeft    = File.prev >> Option.bind Rank.next
+
+    let bishopReaches pos: Reach =
+        [ UpRight; DownRight; DownLeft; UpLeft ]
+        |> List.map Seq.unfoldSimple
+        |> List.apply pos
+
+    let rookReaches pos: Reach =
+        [ Up; Right; Down; Left ]
+        |> List.map Seq.unfoldSimple
+        |> List.apply pos
+
+    let queenReaches pos: Reach =
+        [ bishopReaches; rookReaches ]
+        |> List.apply pos
+        |> List.concat
+
+    let kingReaches pos: Reach =
+        [ UpRight; DownRight; DownLeft; UpLeft; Up; Right; Down; Left ]
+        |> List.apply pos
+        |> List.choose id
+        |> List.map Seq.singleton
+
+    let knightReaches pos: Reach =
+        [
+            Up >?> Up >?> Left;
+            Up >?> Up >?> Right;
+            Down >?> Down >?> Left;
+            Down >?> Down >?> Right;
+            Right >?> Right >?> Up;
+            Right >?> Right >?> Down;
+            Left >?> Left >?> Up;
+            Left >?> Left >?> Down;
+        ]
+        |> List.apply pos
+        |> List.choose id
+        |> List.map Seq.singleton
+
+    let pawnSingleMoveReaches pawnDirection pos: Reach =
+        Seq.unfoldSimple pawnDirection pos
+        |> Seq.take 1
+        |> List.singleton
+
+    let pawnDoubleMoveReaches pawnDirection pos: Reach =
+        Seq.unfoldSimple pawnDirection pos
+        |> Seq.take 2
+        |> List.singleton
+
+    let pawnCaptureReaches pawnDirection pos: Reach =
+        [
+            pawnDirection >?> Left;
+            pawnDirection >?> Right;
+        ]
+        |> List.apply pos
+        |> List.filterNones
+        |> List.map Seq.singleton
+
+    let kingCastleToKingReach castlingDirection (pos: Position): Reach =
+        [ castlingDirection * 2; ]
+        |> List.apply pos
+        |> List.filterNones
+        |> List.map Seq.singleton
+
+    let kingCastleToQueenReach castlingDirection (pos: Position): Reach =
+        [ castlingDirection * 3; ]
+        |> List.apply pos
+        |> List.filterNones
+        |> List.map Seq.singleton
+
+    let pieceReaches piece pos =
+
+        let applyReaches (reachesfn, act: PlyType) =
+            pos
+            |> reachesfn
+            |> List.filter (not << Seq.isEmpty)
+            |> List.map (fun (reach) -> (reach, act))
+
+        let collectReaches = List.collect applyReaches
+
+        match piece with
+        | Piece (color, Pawn) ->
+            let promotionRank = match color with | White -> R7 | Black -> R2
+            let enPassantRank = match color with | White -> R5 | Black -> R4
+            let doubleAdvRank = match color with | White -> R2 | Black -> R7
+            let direction     = match color with | White -> Up | Black -> Down
+            if (snd pos) = promotionRank then
+                collectReaches [
+                    (pawnSingleMoveReaches direction, MoveAndPromoteType);
+                    (pawnCaptureReaches    direction, CaptureAndPromoteType)]
+            elif (snd pos) = enPassantRank then
+                collectReaches [
+                    (pawnSingleMoveReaches direction, MoveType);
+                    (pawnCaptureReaches    direction, CaptureType);
+                    (pawnCaptureReaches    direction, EnPassantType)]
+            elif (snd pos) = doubleAdvRank then
+                collectReaches [
+                    (pawnDoubleMoveReaches direction, MoveType   );
+                    (pawnCaptureReaches    direction, CaptureType);
+                ]
+            else
+                collectReaches [
+                    (pawnSingleMoveReaches direction, MoveType   );
+                    (pawnCaptureReaches    direction, CaptureType);
+                ]
+        | Piece (_, Knight) -> collectReaches [(knightReaches, MoveType);(knightReaches, CaptureType)]
+        | Piece (_, Bishop) -> collectReaches [(bishopReaches, MoveType);(bishopReaches, CaptureType)]
+        | Piece (_, Rook  ) -> collectReaches [(rookReaches, MoveType);(bishopReaches, CaptureType)]
+        | Piece (_, Queen ) -> collectReaches [(queenReaches, MoveType);(queenReaches, CaptureType)]
+        | Piece (White, King  ) ->
+            collectReaches [
+                (kingReaches, MoveType);
+                (kingReaches, CaptureType);
+                (kingCastleToKingReach  Right, CastleKingSideType);
+                (kingCastleToQueenReach Left , CastleQueenSideType)
+            ]
+        | Piece (Black, King  ) ->
+            collectReaches [
+                (kingReaches, MoveType);
+                (kingReaches, CaptureType);
+                (kingCastleToKingReach  Left , CastleKingSideType);
+                (kingCastleToQueenReach Right, CastleQueenSideType)
+            ]
+
+let opposite = function
+    | White -> Black
+    | Black -> White
+
+type Square = 
+    | PieceSquare of Piece * Position
+    | EmptySquare of Position
+
+module Square =
+
+    let isEmpty = function
+        | EmptySquare _ -> true
+        | _ -> false
+
+    let hasPiece = function
+        | PieceSquare _ -> true
+        | _ -> false
+
+    let color = function
+        | PieceSquare (Piece (col, _), _) -> Some col
+        | _ -> None
+
+    let piece = function
+        | PieceSquare (piece, _) -> Some piece
+        | _ -> None
+
+    let position = function
+        | PieceSquare (_, pos) -> pos
+        | EmptySquare pos -> pos
+
+let at pos placedPieces =
+    placedPieces
+    |> List.map PieceSquare
+    |> List.tryFind (fun square -> Square.position square = pos)
+    |> defaultArg <| EmptySquare pos
+
+let (@) game pos = at pos game
+
 type Ply =
     | Move of Piece * Position * Position
     | Capture of Piece * Position * Position
-    | EnPassant of Piece * Position * Position
+    | CaptureEnPassant of Piece * Position * Position
     | CastleKingSide of Color
     | CastleQueenSide of Color
     | Promote of Piece * Position * Position * Shape
     | CaptureAndPromote of Piece * Position * Position * Shape
-
-let plyPositions = function
-    | Move (_, source, target) -> (source, target)
-    | Capture (_, source, target) -> (source, target)
-    | EnPassant (_, source, target) -> (source, target)
-    | CastleKingSide White -> (E1, G1)
-    | CastleQueenSide White -> (E1, C1)
-    | CastleKingSide Black -> (E8, G8)
-    | CastleQueenSide Black -> (E8, C8)
-    | Promote (_, source, target, _) -> (source, target)
-    | CaptureAndPromote (_, source, target, _) -> (source, target)
 
 type BoardChange =
     | MovePiece of Position * Position
     | RemovePiece of Position
     | AddPiece of Color * Shape * Position
 
-let plyBoardChanges = function
-    | Move (_, source, target) -> [MovePiece (source, target)]
-    | Capture (_, source, target) -> [MovePiece (source, target)]
-    | EnPassant (_, source, target) -> [MovePiece (source, target)]
-    | CastleKingSide White -> [MovePiece (E1, G1); MovePiece (H1, F1)]
-    | CastleQueenSide White -> [MovePiece (E1, C1); MovePiece (A1, D1)]
-    | CastleKingSide Black -> [MovePiece (E8, G8); MovePiece (H8, F8)]
-    | CastleQueenSide Black -> [MovePiece (E8, C8); MovePiece (A8, D8)]
-    | Promote (Piece (color, _), source, target, shape) -> [RemovePiece source; AddPiece (color, shape, target)]
-    | CaptureAndPromote (Piece (color, _), source, target, shape) -> [RemovePiece source; AddPiece (color, shape, target)]
+module Ply =
+    let isCapture = function
+        | Capture _
+        | CaptureAndPromote _
+        | CaptureEnPassant _ -> true
+        | _ -> false
+    let positions = function
+        | Move (_, source, target) -> (source, target)
+        | Capture (_, source, target) -> (source, target)
+        | CaptureEnPassant (_, source, target) -> (source, target)
+        | CastleKingSide White -> (E1, G1)
+        | CastleQueenSide White -> (E1, C1)
+        | CastleKingSide Black -> (E8, G8)
+        | CastleQueenSide Black -> (E8, C8)
+        | Promote (_, source, target, _) -> (source, target)
+        | CaptureAndPromote (_, source, target, _) -> (source, target)
 
+    let boardChanges = function
+        | Move (_, source, target) -> [MovePiece (source, target)]
+        | Capture (_, source, target) -> [MovePiece (source, target)]
+        | CaptureEnPassant (_, source, target) -> [MovePiece (source, target)]
+        | CastleKingSide White -> [MovePiece (E1, G1); MovePiece (H1, F1)]
+        | CastleQueenSide White -> [MovePiece (E1, C1); MovePiece (A1, D1)]
+        | CastleKingSide Black -> [MovePiece (E8, G8); MovePiece (H8, F8)]
+        | CastleQueenSide Black -> [MovePiece (E8, C8); MovePiece (A8, D8)]
+        | Promote (Piece (color, _), source, target, shape) -> [RemovePiece source; AddPiece (color, shape, target)]
+        | CaptureAndPromote (Piece (color, _), source, target, shape) -> [RemovePiece source; AddPiece (color, shape, target)]
 
-let plyCaptureTarget = function
-    | Capture (_, _, target) -> Some target
-    | CaptureAndPromote (_, _, target, _) -> Some target
-    | _ -> None
-
+    let captureTarget = function
+        | Capture (_, _, target) -> Some target
+        | CaptureAndPromote (_, _, target, _) -> Some target
+        | _ -> None
 
 type PlayerAction =
     | MovePiece of Ply
     | Resign
     | OfferDraw
 
-let pieceReaches piece pos =
-
-    let applyReaches (reachesfn, act: PlyType) =
-        pos
-        |> reachesfn
-        |> List.filter (not << Seq.isEmpty)
-        |> List.map (fun (reach) -> (reach, act))
-
-    let collectReaches = List.collect applyReaches
-
-    match piece with
-    | Piece (color, Pawn) ->
-        let promotionRank = match color with | White -> R7 | Black -> R2
-        let enPassantRank = match color with | White -> R5 | Black -> R4
-        let doubleAdvRank = match color with | White -> R2 | Black -> R7
-        let direction     = match color with | White -> Up | Black -> Down
-        if (snd pos) = promotionRank then
-            collectReaches [
-                (pawnSingleMoveReaches direction, MoveAndPromoteType);
-                (pawnCaptureReaches    direction, CaptureAndPromoteType)]
-        elif (snd pos) = enPassantRank then
-            collectReaches [
-                (pawnSingleMoveReaches direction, MoveType);
-                (pawnCaptureReaches    direction, CaptureType);
-                (pawnCaptureReaches    direction, EnPassantType)]
-        elif (snd pos) = doubleAdvRank then
-            collectReaches [
-                (pawnDoubleMoveReaches direction, MoveType   );
-                (pawnCaptureReaches    direction, CaptureType);
-            ]
-        else
-            collectReaches [
-                (pawnSingleMoveReaches direction, MoveType   );
-                (pawnCaptureReaches    direction, CaptureType);
-            ]
-    | Piece (_, Knight) -> collectReaches [(knightReaches, MoveType);(knightReaches, CaptureType)]
-    | Piece (_, Bishop) -> collectReaches [(bishopReaches, MoveType);(bishopReaches, CaptureType)]
-    | Piece (_, Rook  ) -> collectReaches [(rookReaches, MoveType);(bishopReaches, CaptureType)]
-    | Piece (_, Queen ) -> collectReaches [(queenReaches, MoveType);(queenReaches, CaptureType)]
-    | Piece (White, King  ) ->
-        collectReaches [
-            (kingReaches, MoveType);
-            (kingReaches, CaptureType);
-            (kingCastleToKingReach  Right, CastleKingSideType);
-            (kingCastleToQueenReach Left , CastleQueenSideType)
-        ]
-    | Piece (Black, King  ) ->
-        collectReaches [
-            (kingReaches, MoveType);
-            (kingReaches, CaptureType);
-            (kingCastleToKingReach  Left , CastleKingSideType);
-            (kingCastleToQueenReach Right, CastleQueenSideType)
-        ]
-
 let sameColor (Piece (sourceColor, _)) square =
-    match color square with
+    match Square.color square with
     | Some col -> col = sourceColor
     | None -> false
     
@@ -267,9 +270,9 @@ let canExecute game sourcePiece sourcePos targetPos plyType =
     let targetSquare = game.pieces @ targetPos
     match plyType with
     | MoveType | MoveAndPromoteType ->
-        targetSquare |> isEmpty
+        targetSquare |> Square.isEmpty
     | CaptureType | CaptureAndPromoteType ->
-        targetSquare |> hasPiece &&
+        targetSquare |> Square.hasPiece &&
         targetSquare |> (differentColor sourcePiece)
     | EnPassantType ->
         let passedPawnPos = (fst targetPos, snd sourcePos)
@@ -282,22 +285,25 @@ let canExecute game sourcePiece sourcePos targetPos plyType =
         match sourcePiece with
         | Piece (White, King) ->
             game.whitePlayerCastleState.canCastleKingside &&
-            game.pieces @ F1 |> isEmpty &&
-            game.pieces @ G1 |> isEmpty
-        | Piece (Black, King) -> game.blackPlayerCastleState.canCastleKingside &&
-            game.pieces @ F8 |> isEmpty &&
-            game.pieces @ G8 |> isEmpty
+            game.pieces @ F1 |> Square.isEmpty &&
+            game.pieces @ G1 |> Square.isEmpty
+        | Piece (Black, King) ->
+            game.blackPlayerCastleState.canCastleKingside &&
+            game.pieces @ F8 |> Square.isEmpty &&
+            game.pieces @ G8 |> Square.isEmpty
         | _ -> false
     | CastleQueenSideType ->
         match sourcePiece with
-        | Piece (White, King) -> game.whitePlayerCastleState.canCastleQueenside &&
-            game.pieces @ B1 |> isEmpty &&
-            game.pieces @ C1 |> isEmpty &&
-            game.pieces @ D1 |> isEmpty
-        | Piece (Black, King) -> game.blackPlayerCastleState.canCastleQueenside &&
-            game.pieces @ B8 |> isEmpty &&
-            game.pieces @ C8 |> isEmpty &&
-            game.pieces @ D8 |> isEmpty
+        | Piece (White, King) ->
+            game.whitePlayerCastleState.canCastleQueenside &&
+            game.pieces @ B1 |> Square.isEmpty &&
+            game.pieces @ C1 |> Square.isEmpty &&
+            game.pieces @ D1 |> Square.isEmpty
+        | Piece (Black, King) ->
+            game.blackPlayerCastleState.canCastleQueenside &&
+            game.pieces @ B8 |> Square.isEmpty &&
+            game.pieces @ C8 |> Square.isEmpty &&
+            game.pieces @ D8 |> Square.isEmpty
         | _ -> false
 
 
@@ -307,7 +313,7 @@ let toPly (Piece (color, shape), sourcePosition, plyType, targetPosition) =
     match plyType with
     | MoveType -> Move (p, sourcePosition, targetPosition)
     | CaptureType -> Capture (p, sourcePosition, targetPosition)
-    | EnPassantType -> EnPassant (p, sourcePosition, targetPosition)
+    | EnPassantType -> CaptureEnPassant (p, sourcePosition, targetPosition)
     | CastleKingSideType -> CastleKingSide color
     | CastleQueenSideType -> CastleQueenSide color
     | MoveAndPromoteType -> Promote (p, sourcePosition, targetPosition, shape)
@@ -318,7 +324,7 @@ let toPlies (Piece (color, sh), s, a, t) =
     match a with
     | MoveType -> [ Move (p, s, t) ]
     | CaptureType -> [ Capture (p, s, t) ]
-    | EnPassantType -> [ EnPassant (p, s, t) ]
+    | EnPassantType -> [ CaptureEnPassant (p, s, t) ]
     | CastleKingSideType -> [ CastleKingSide color ]
     | CastleQueenSideType -> [ CastleQueenSide color ]
     | MoveAndPromoteType -> [ Queen; Rook; Bishop; Knight ] |> List.map (fun shape -> Promote (p, s, t, shape))
@@ -344,17 +350,26 @@ let reachCapabilities game piece sourcePos (plyTypeToAnalyze: PlyType) reach =
     |> Seq.filterNones
 
 let pieceCapabilitiesWithoutCheckFilter game piece sourcePos =
-    pieceReaches piece sourcePos
+    Reach.pieceReaches piece sourcePos
     |> Seq.collect (fun (reach, plyType) -> reachCapabilities game piece sourcePos plyType reach)
     |> Seq.collect toPlies
 
 /// <summary>Determines the attacks a piece of the game is making.</summary>
 let attacksBy game (piece, position) =
     pieceCapabilitiesWithoutCheckFilter game piece position
-    |> Seq.map plyCaptureTarget
+    |> Seq.map Ply.captureTarget
     |> Seq.filterNones
 
 /// <summary>Determines the attacks a piece of the game is making.</summary>
+let isAttacked game square =
+    game.pieces
+    |> List.toSeq
+    |> Seq.collect (fun (piece, position) -> pieceCapabilitiesWithoutCheckFilter game piece position)
+    |> Seq.filter Ply.isCapture
+    |> Seq.map Ply.captureTarget
+    |> Seq.filterNones
+
+/// <summary>Determines the attacks a player is making.</summary>
 let attacks col game = 
     game.pieces
     |> Seq.filter (fun (Piece (pieceColor, _), _) -> pieceColor = col)
@@ -385,12 +400,11 @@ let isCheck color game =
 let opponent = opposite
 
 let rawExecutePly (ply:Ply) (pieces:(Piece*Position) list) =
-    plyBoardChanges ply
+    Ply.boardChanges ply
     |> List.fold rawBoardChange pieces
 
 let nextGameState (ply:Ply) gameState =
     let otherPlayer = opponent gameState.turn
-    printfn "%A" ply
     let plyPreventsWhiteCastleKingside =
         match ply with
         | Move    (Piece (White, King), _, _)
@@ -428,7 +442,8 @@ let nextGameState (ply:Ply) gameState =
         pieces = gameState.pieces |> rawExecutePly ply
         enPassantPawn =
             match ply with
-            | EnPassant (_, _, t) -> Some t
+            | Move (Piece (White, Pawn), (_, R2), (f, R4)) -> Some (f, R4)
+            | Move (Piece (Black, Pawn), (_, R7), (f, R5)) -> Some (f, R5)
             | _ -> None
         blackPlayerCastleState =
             {
@@ -526,38 +541,38 @@ let private isCheckmateTo player gameState =
 let private isGameTied player gameState = false
 
 // given a player & a gameState, it returns the possible player actions.
-let playerActions gameState =
+let playerPlies gameState =
     let getCapabilities (sourcePiece, sourcePos) =
         pieceCapabilities gameState (sourcePiece, sourcePos)
-        |> Seq.map MovePiece
 
     let belongsToPlayer (Piece (pieceColor, _), _) = pieceColor = gameState.turn
     
     gameState.pieces
     |> Seq.filter belongsToPlayer
     |> Seq.collect getCapabilities
-    |> Seq.append [Resign; OfferDraw]
 
 // given a player & a gameState, it returns a move result for that player.
 let rec makePlayerMoveResultWithCapabilities gameState =
     let displayInfo = getDisplayInfo gameState
-    let playerActions = playerActions gameState
-    let actionIsMove = function
-        | MovePiece _ -> true
-        | _ -> false
+    let playerPlies = playerPlies gameState
 
-    let canMove = playerActions |> Seq.exists actionIsMove
+    let canMove = playerPlies |> (not << Seq.isEmpty)
     if canMove then
         let playerMovementCapabilities =
-            playerActions
-            |> Seq.map (makeNextMoveInfo gameState)
-            |> Seq.toList
-    
+            getExecutableActions playerPlies gameState
     
         PlayerMoved (displayInfo, playerMovementCapabilities)
     else
         let displayInfo = getFinalDisplayInfo gameState
         WonByCheckmate (displayInfo, gameState.turn)
+
+// Convert possible plies to executable actions, adding Resign and OfferDraw
+and getExecutableActions plies gameState =
+    plies
+    |> Seq.map MovePiece
+    |> Seq.append [Resign;OfferDraw]
+    |> Seq.map (makeNextMoveInfo gameState)
+    |> Seq.toList
 
 and makeNextMoveInfo gameState playerAction =
     // the capability has the player & action to take & gameState baked in
@@ -569,17 +584,15 @@ and executePlayerAction gameState playerAction: PlayerActionOutcome =
     match playerAction with
     | MovePiece ply ->
         let newGameState = nextGameState ply gameState
+        printfn "White: %A" newGameState.whitePlayerCastleState
+        printfn "Black: %A" newGameState.blackPlayerCastleState
         makePlayerMoveResultWithCapabilities newGameState
     | Resign ->
         let displayInfo = getFinalDisplayInfo gameState
         LostByResignation (displayInfo, (opponent gameState.turn))
     | OfferDraw ->
         let displayInfo = getDisplayInfo gameState
-        let t = playerActions gameState
-        let playerMovementCapabilities =
-            t
-            |> Seq.map (makeNextMoveInfo gameState)
-            |> Seq.toList
+        let playerMovementCapabilities = getExecutableActions (playerPlies gameState) gameState
 
         DrawOffer (displayInfo, gameState.turn, playerMovementCapabilities)
 

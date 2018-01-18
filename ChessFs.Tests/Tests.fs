@@ -8,35 +8,39 @@ module ``be ascending tests`` =
     open Chess
     open Output
 
+    let WhitePawn = Piece (White, Pawn)
+    let BlackPawn = Piece (Black, Pawn)
+    let BlackKnight = Piece (Black, Knight)
+
     [<Fact>]
     let ``Directions tests``() =
-        test <@ [A2;C8;H3] |> List.map UpRight  = [Some B3; None; None] @>
+        test <@ [A2;C8;H3] |> List.map Reach.UpRight  = [Some B3; None; None] @>
 
     [<Fact>]
     let ``Reach generator``() =
         let simplify = List.map Seq.toList >> List.map List.sort >> List.sort
         let simplify2 = List.map (fun (r, a) -> r |> Seq.toList |> List.sort, a) >> List.sort
 
-        test <@ pawnDoubleMoveReaches Up C2 |> simplify = [[C3; C4]] @>
-        test <@ pawnSingleMoveReaches Up C3 |> simplify = [[C4]] @>
-        test <@ pawnCaptureReaches    Up C2 |> simplify = [[B3];[D3]] @>
+        test <@ Reach.pawnDoubleMoveReaches Reach.Up C2 |> simplify = [[C3; C4]] @>
+        test <@ Reach.pawnSingleMoveReaches Reach.Up C3 |> simplify = [[C4]] @>
+        test <@ Reach.pawnCaptureReaches    Reach.Up C2 |> simplify = [[B3];[D3]] @>
         test
-            <@ bishopReaches C3 |> simplify =
+            <@ Reach.bishopReaches C3 |> simplify =
             [[A1; B2]; [A5; B4]; [D2; E1];[D4; E5; F6; G7; H8]]@>
         test
-            <@ rookReaches C3 |> simplify =
+            <@ Reach.rookReaches C3 |> simplify =
             [[A3; B3]; [C1; C2]; [C4; C5; C6; C7; C8];[D3; E3; F3; G3; H3]]@>
         test
-            <@ pieceReaches WhitePawn C2 |> simplify2 =
+            <@ Reach.pieceReaches WhitePawn C2 |> simplify2 =
             [([B3], CaptureType); ([C3; C4], MoveType); ([D3], CaptureType)]@>
         test <@
-                pieceReaches BlackPawn E7 |> simplify2 = [
+                Reach.pieceReaches BlackPawn E7 |> simplify2 = [
                     ([D6], CaptureType);
                     ([E5; E6], MoveType);
                     ([F6], CaptureType)]
         @>
         test <@
-                pieceReaches BlackKnight B8 |> simplify2 = [
+                Reach.pieceReaches BlackKnight B8 |> simplify2 = [
                     ([A6], MoveType);
                     ([A6], CaptureType);
                     ([C6], MoveType);
@@ -45,6 +49,11 @@ module ``be ascending tests`` =
                     ([D7], CaptureType);
                     ]
         @>
+
+    let result4 = 
+        List.map plyToAlgebraic
+        >> List.sort
+
     let result3 = 
         List.map playerActionToAlgebraic
         >> List.sort
@@ -94,6 +103,21 @@ module ``be ascending tests`` =
                 }
                 |> result = [":d"; ":r"; "c8=B"; "c8=N"; "c8=Q"; "c8=R"; "cxb8=B"; "cxb8=N"; "cxb8=Q"; "cxb8=R"]
         @>
+   
+    let findExecutableActionAux (input: string) availableActions =
+            availableActions
+            |> List.filter (fun { action = m } -> (playerActionToAlgebraic m).ToLowerInvariant() = input.ToLowerInvariant())
+            |> List.tryHead
+
+    let handleChessActionOutcome2 formerPlayerActionOutcome (input: string) =
+        match formerPlayerActionOutcome with
+        | Some (PlayerMoved (_, availableActions)) ->
+            match findExecutableActionAux input availableActions with
+            | Some x -> Some (x.execute())
+            | None -> None
+        | _ -> None
+
+    let x = List.fold handleChessActionOutcome2 (Some newChessGame)
     
     let gameStateAfterE4 = initialGameState |> nextGameState (Move (WhitePawn, E2, E4))
 
@@ -113,11 +137,11 @@ module ``be ascending tests`` =
         @>
 
     [<Fact>]
-    let ``Black available player actions``() =
+    let ``Black available player plies``() =
         test <@
-                playerActions gameStateAfterE4
+                playerPlies gameStateAfterE4
                 |> Seq.toList
-                |> result3 = [":d"; ":r"; "Na6"; "Nc6"; "Nf6"; "Nh6"; "a5"; "a6"; "b5"; "b6"; "c5"; "c6"; "d5"; "d6"; "e5"; "e6"; "f5";
+                |> result4 = ["Na6"; "Nc6"; "Nf6"; "Nh6"; "a5"; "a6"; "b5"; "b6"; "c5"; "c6"; "d5"; "d6"; "e5"; "e6"; "f5";
  "f6"; "g5"; "g6"; "h5"; "h6"]
         @>
 

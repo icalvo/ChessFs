@@ -62,6 +62,10 @@ let handleChessActionOutcome formerPlayerActionOutcome (input: Lazy<string>) =
     | DrawOffer (displayInfo, player, playerMovementCapabilities) ->
         askDrawAgreement input displayInfo player playerMovementCapabilities
 
+let fn =
+    let game = newChessGame
+    game
+
 
 [<EntryPoint>]
 let main argv =
