@@ -190,6 +190,10 @@ let printActions =
  
 let printDisplayInfo displayInfo =
     printBoard2 displayInfo.board
+    if displayInfo.canCastleKingside then
+        printfn "Can castle kingside"
+    if displayInfo.canCastleKingside then
+        printfn "Can castle queenside"
     if displayInfo.isCheck && Option.isSome displayInfo.playerToMove then
         printfn "CHECK!"
     displayInfo.playerToMove
