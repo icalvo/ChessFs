@@ -198,7 +198,7 @@ let at pos placedPieces =
     |> List.tryFind (fun square -> Square.position square = pos)
     |> defaultArg <| EmptySquare pos
 
-let (@) placedPieces pos = at pos placedPieces
+let (@@) placedPieces pos = at pos placedPieces
 
 type Ply =
     | Move of Piece * Position * Position
@@ -270,8 +270,9 @@ type GameState = {
     turn: Color
     whitePlayerCastleState: CastleStatus
     blackPlayerCastleState: CastleStatus
-    enPassantPawn: Position option
+    pawnCapturableEnPassant: Position option
     pieces: (Piece * Position) list
+    moves: Ply list
 }
 with
     member this.currentPlayerCastleState = 
@@ -279,8 +280,10 @@ with
         | White -> this.whitePlayerCastleState
         | Black -> this.blackPlayerCastleState
 
+let (@@@) game pos = at pos game.pieces
+
 let canExecute game sourcePiece sourcePos targetPos plyType =
-    let targetSquare = game.pieces @ targetPos
+    let targetSquare = game @@@ targetPos
     match plyType with
     | MoveType | MoveAndPromoteType ->
         targetSquare |> Square.isEmpty
@@ -290,35 +293,34 @@ let canExecute game sourcePiece sourcePos targetPos plyType =
     | EnPassantType ->
         let (targetFile, _) = targetPos
         let (_, sourceRank) = sourcePos
-        let passedPawnPos = (targetFile, sourceRank)
+        let capturePos = (targetFile, sourceRank)
 
-        // targetSquare |> isEmpty && // THIS SHOULD BE ALWAYS TRUE
-        game.enPassantPawn
-        |> Option.map (fun p -> p = passedPawnPos)
-        |> Option.isSome
+        match game.pawnCapturableEnPassant with
+        | Some capturable -> capturable = capturePos
+        | None -> false
     | CastleKingSideType ->
         match sourcePiece with
         | Piece (White, King) ->
             game.whitePlayerCastleState.canCastleKingside &&
-            game.pieces @ F1 |> Square.isEmpty &&
-            game.pieces @ G1 |> Square.isEmpty
+            game @@@ F1 |> Square.isEmpty &&
+            game @@@ G1 |> Square.isEmpty
         | Piece (Black, King) ->
             game.blackPlayerCastleState.canCastleKingside &&
-            game.pieces @ F8 |> Square.isEmpty &&
-            game.pieces @ G8 |> Square.isEmpty
+            game @@@ F8 |> Square.isEmpty &&
+            game @@@ G8 |> Square.isEmpty
         | _ -> false
     | CastleQueenSideType ->
         match sourcePiece with
         | Piece (White, King) ->
             game.whitePlayerCastleState.canCastleQueenside &&
-            game.pieces @ B1 |> Square.isEmpty &&
-            game.pieces @ C1 |> Square.isEmpty &&
-            game.pieces @ D1 |> Square.isEmpty
+            game @@@ B1 |> Square.isEmpty &&
+            game @@@ C1 |> Square.isEmpty &&
+            game @@@ D1 |> Square.isEmpty
         | Piece (Black, King) ->
             game.blackPlayerCastleState.canCastleQueenside &&
-            game.pieces @ B8 |> Square.isEmpty &&
-            game.pieces @ C8 |> Square.isEmpty &&
-            game.pieces @ D8 |> Square.isEmpty
+            game @@@ B8 |> Square.isEmpty &&
+            game @@@ C8 |> Square.isEmpty &&
+            game @@@ D8 |> Square.isEmpty
         | _ -> false
 
 
@@ -398,7 +400,7 @@ let isAttackedBy attackingColor game targetPosition =
 let private rawBoardChange pieces boardChange =
     match boardChange with
     | BoardChange.MovePiece (sourcePos, targetPos) ->
-        match pieces @ sourcePos with
+        match pieces @@ sourcePos with
         | EmptySquare _ -> pieces |> List.filter (fun (_, position) -> position <> targetPos)
         | PieceSquare (piece, _) -> (piece, targetPos) :: (pieces |> List.filter (fun (_, position) -> position <> sourcePos && position <> targetPos))
     | BoardChange.RemovePiece pos -> pieces |> List.filter (fun (_, position) -> position <> pos)
@@ -455,7 +457,7 @@ let nextGameState (ply:Ply) gameState =
     { gameState with
         turn = otherPlayer
         pieces = gameState.pieces |> rawExecutePly ply
-        enPassantPawn =
+        pawnCapturableEnPassant =
             match ply with
             | Move (Piece (White, Pawn), (_, R2), (f, R4)) -> Some (f, R4)
             | Move (Piece (Black, Pawn), (_, R7), (f, R5)) -> Some (f, R5)
@@ -478,6 +480,7 @@ let nextGameState (ply:Ply) gameState =
                     gameState.whitePlayerCastleState.canCastleQueenside &&
                     not plyPreventsWhiteCastleQueenside
             }
+        moves = gameState.moves @ [ply]
     }
 
 let pieceCapabilities game (piece, sourcePos) =
@@ -494,6 +497,7 @@ type DisplayInfo = {
     isCheck: bool
     canCastleKingside: bool
     canCastleQueenside: bool
+    moves: Ply list
 }
 
 type DrawTypes =
@@ -528,32 +532,26 @@ and ExecutableAction = {
 let getFinalDisplayInfo game =
     {
         board = Array2D.init 8 8 (fun r f ->
-            game.pieces @ (File.fromInt f, Rank.fromInt r)
+            game @@@ (File.fromInt f, Rank.fromInt r)
         )
         playerToMove = None
         isCheck = isCheck game.turn game
         canCastleKingside = game.currentPlayerCastleState.canCastleKingside
         canCastleQueenside = game.currentPlayerCastleState.canCastleQueenside
+        moves = game.moves
     }
 
 let getDisplayInfo game =
     {
         board = Array2D.init 8  8 (fun r f ->
-            game.pieces @ (File.fromInt f, Rank.fromInt r)
+            game @@@ (File.fromInt f, Rank.fromInt r)
         )
         playerToMove = Some game.turn
         isCheck = isCheck game.turn game
         canCastleKingside = game.currentPlayerCastleState.canCastleKingside
         canCastleQueenside = game.currentPlayerCastleState.canCastleQueenside
+        moves = game.moves
     }
-
-let private isCheckmateTo player gameState =
-    // TODO:
-    // let (<&>) f g = (fun x -> f x && g x)
-    // isCheck <&> capabilities 
-    false
-
-let private isGameTied player gameState = false
 
 // given a player & a gameState, it returns the possible player actions.
 let playerPlies gameState =
@@ -658,7 +656,8 @@ let initialGameState =
                                     canCastleKingside = true
                                     canCastleQueenside = true
                                  }
-        enPassantPawn = None
+        pawnCapturableEnPassant = None
+        moves = List.Empty
     }
 
 let newChessGame = makePlayerMoveResultWithCapabilities initialGameState

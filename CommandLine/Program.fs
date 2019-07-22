@@ -62,11 +62,6 @@ let handleChessActionOutcome formerPlayerActionOutcome (input: Lazy<string>) =
     | DrawOffer (displayInfo, player, playerMovementCapabilities) ->
         askDrawAgreement input displayInfo player playerMovementCapabilities
 
-let fn =
-    let game = newChessGame
-    game
-
-
 [<EntryPoint>]
 let main argv =
     let game = newChessGame
@@ -87,5 +82,4 @@ let main argv =
 
     ignore <| StateMachine.stateMachine chessTransition isFinish initialState input
     printfn "Bye!"
-    ignore <| Console.ReadLine()
     0

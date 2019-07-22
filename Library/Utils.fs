@@ -38,6 +38,17 @@
         let unfoldSimple nextFn =
             nextFn >> Option.map (fun x -> (x, x)) |> Seq.unfold
 
+        /// Returns a sequence that yields chunks of length n.
+        /// Each chunk is returned as a list.
+        let batch length (xs: seq<'T>) =
+            let rec loop xs =
+                [
+                    yield Seq.truncate length xs |> Seq.toList
+                    match Seq.length xs <= length with
+                    | false -> yield! loop (Seq.skip length xs)
+                    | true -> ()
+                ]
+            loop xs
     module List =
         let pipe action = List.map (fun x -> action x; x)
         let debug name = pipe (printfn "%s yields %A" name)

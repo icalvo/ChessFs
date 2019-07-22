@@ -4,6 +4,7 @@ open System
 open CoreTypes
 open Chess
 open Microsoft.FSharp.Core.Printf
+open Utils
 
 // STRING REPRESENTATIONS
 
@@ -157,9 +158,21 @@ let cellForeground =
 let printSquare sq =
     cprintf (cellForeground sq) (cellBackground (Square.position sq)) "%s" (squareToString sq)
 
-let printBoard2 (b: Square[,]) color =
+let printBoard (b: Square[,]) color =
+    let colorFunc =
+        match color with
+        | White -> id
+        | Black -> Array.rev
+
+    let colorFunc2 =
+        match color with
+        | White -> id
+        | Black -> Array.rev
+
+    let indexesToIterate = colorFunc [|0..7|]
+
     let iterRow fn row =
-        [|0..7|]
+        indexesToIterate
         |> Array.map (fun i -> b.[row, i])
         |> Array.iter fn
 
@@ -169,12 +182,12 @@ let printBoard2 (b: Square[,]) color =
         printfn "%i" (8-i)
 
     let filesHeader =
-        [|"A"; "B"; "C"; "D"; "E"; "F"; "G"; "H"|]
+        (colorFunc2 [|"A"; "B"; "C"; "D"; "E"; "F"; "G"; "H"|])
         |> Array.map (fun x -> x.PadLeft(2, ' '))
         |> String.concat ""
 
     printfn "%s" filesHeader
-    [|0..7|] |> Array.iter printSquareRow
+    indexesToIterate |> Array.iter printSquareRow
     printfn "%s" filesHeader
 
 let csl toString seq = seq |> Seq.map toString |> String.concat ", "
@@ -182,13 +195,24 @@ let csl toString seq = seq |> Seq.map toString |> String.concat ", "
 let actionsOutput seq = 
     csl (fun moveInfo -> playerActionToAlgebraic moveInfo.action) seq
 
-
 let printActions = 
     csl (fun moveInfo -> playerActionToAlgebraic moveInfo.action)
     >> printfn "%s"
+
+let printMoves =
+    Seq.batch 2
+    >> Seq.indexed
+    >> Seq.map (fun (idx, plies) ->
+        match plies with
+        |[whitePly] -> sprintf "%i. %s" (idx+1) (plyToAlgebraic whitePly)
+        |[whitePly; blackPly] -> sprintf "%i. %s %s" (idx+1) (plyToAlgebraic whitePly) (plyToAlgebraic blackPly)
+        |_ -> "")
+    >> String.concat " "
+    >> printfn "Moves: %s"
  
 let printDisplayInfo displayInfo =
-    printBoard2 displayInfo.board displayInfo.playerToMove
+    printBoard displayInfo.board (Option.defaultValue White displayInfo.playerToMove)
+    printMoves displayInfo.moves
     if displayInfo.canCastleKingside then
         printfn "Can castle kingside"
     if displayInfo.canCastleQueenside then
@@ -196,7 +220,7 @@ let printDisplayInfo displayInfo =
     if displayInfo.isCheck && Option.isSome displayInfo.playerToMove then
         printfn "CHECK!"
     displayInfo.playerToMove
-    |> Option.map (fun p -> printfn "%A moves" p) |> ignore
+    |> Option.map (fun p -> printfn "%A to move" p) |> ignore
     printfn "" 
 
 let printOutcome = function
