@@ -129,8 +129,10 @@ let H6 = (H, R6)
 let H7 = (H, R7)
 let H8 = (H, R8)
 
+type Position = File * Rank
+
 module Rank =
-    let next = function
+    let next: Position -> Position option = function
         | (f, R1) -> Some (f, R2)
         | (f, R2) -> Some (f, R3)
         | (f, R3) -> Some (f, R4)
@@ -138,12 +140,12 @@ module Rank =
         | (f, R5) -> Some (f, R6)
         | (f, R6) -> Some (f, R7)
         | (f, R7) -> Some (f, R8)
-        | (f, R8) -> None
+        | (_, R8) -> None
 
 
 
-    let prev = function
-        | (f, R1) -> None
+    let prev: Position -> Position option = function
+        | (_, R1) -> None
         | (f, R2) -> Some (f, R1)
         | (f, R3) -> Some (f, R2)
         | (f, R4) -> Some (f, R3)
@@ -153,7 +155,7 @@ module Rank =
         | (f, R8) -> Some (f, R7)
 
 module File =
-    let next = function
+    let next: Position -> Position option = function
         | (A, r) -> Some (B, r)
         | (B, r) -> Some (C, r)
         | (C, r) -> Some (D, r)
@@ -161,10 +163,10 @@ module File =
         | (E, r) -> Some (F, r)
         | (F, r) -> Some (G, r)
         | (G, r) -> Some (H, r)
-        | (H, r) -> None
+        | (H, _) -> None
 
-    let prev = function
-        | (A, r) -> None
+    let prev: Position -> Position option = function
+        | (A, _) -> None
         | (B, r) -> Some (A, r)
         | (C, r) -> Some (B, r)
         | (D, r) -> Some (C, r)
@@ -172,7 +174,5 @@ module File =
         | (F, r) -> Some (E, r)
         | (G, r) -> Some (F, r)
         | (H, r) -> Some (G, r)
-
-type Position = File * Rank
 
 type Color = Black | White

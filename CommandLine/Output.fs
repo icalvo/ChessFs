@@ -157,7 +157,7 @@ let cellForeground =
 let printSquare sq =
     cprintf (cellForeground sq) (cellBackground (Square.position sq)) "%s" (squareToString sq)
 
-let printBoard2 (b: Square[,]) =
+let printBoard2 (b: Square[,]) color =
     let iterRow fn row =
         [|0..7|]
         |> Array.map (fun i -> b.[row, i])
@@ -188,7 +188,7 @@ let printActions =
     >> printfn "%s"
  
 let printDisplayInfo displayInfo =
-    printBoard2 displayInfo.board
+    printBoard2 displayInfo.board displayInfo.playerToMove
     if displayInfo.canCastleKingside then
         printfn "Can castle kingside"
     if displayInfo.canCastleQueenside then

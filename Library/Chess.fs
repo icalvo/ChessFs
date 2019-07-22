@@ -4,7 +4,7 @@ open CoreTypes
 
 
 type Piece = Piece of Color * Shape
-let placedPiece color shape pos = (Piece (color, shape), pos)
+let placedPiece color shape (pos: Position) = (Piece (color, shape), pos)
 
 type PlyType =
     | MoveType
@@ -95,6 +95,12 @@ module Reach =
         |> List.filterNones
         |> List.map Seq.singleton
 
+    type PawnRankType =
+        | PromotionRank
+        | EnPassantRank
+        | DoubleMoveRank
+        | RegularRank
+
     let pieceReaches piece pos =
 
         let applyReaches (reachesfn, act: PlyType) =
@@ -107,25 +113,32 @@ module Reach =
 
         match piece with
         | Piece (color, Pawn) ->
-            let promotionRank = match color with | White -> R7 | Black -> R2
-            let enPassantRank = match color with | White -> R5 | Black -> R4
-            let doubleAdvRank = match color with | White -> R2 | Black -> R7
-            let direction     = match color with | White -> Up | Black -> Down
-            if (snd pos) = promotionRank then
+            let (_, rank) = pos
+            let direction = match color with | White -> Up | Black -> Down
+
+            let pawnRankType =
+                match (color, rank) with
+                | (White, R7) | (Black, R2) -> PromotionRank
+                | (White, R5) | (Black, R4) -> EnPassantRank
+                | (White, R2) | (Black, R7) -> DoubleMoveRank
+                | _ -> RegularRank
+
+            match pawnRankType with
+            | PromotionRank ->
                 collectReaches [
                     (pawnSingleMoveReaches direction, MoveAndPromoteType);
                     (pawnCaptureReaches    direction, CaptureAndPromoteType)]
-            elif (snd pos) = enPassantRank then
+            | EnPassantRank ->
                 collectReaches [
                     (pawnSingleMoveReaches direction, MoveType);
                     (pawnCaptureReaches    direction, CaptureType);
                     (pawnCaptureReaches    direction, EnPassantType)]
-            elif (snd pos) = doubleAdvRank then
+            | DoubleMoveRank ->
                 collectReaches [
                     (pawnDoubleMoveReaches direction, MoveType   );
                     (pawnCaptureReaches    direction, CaptureType);
                 ]
-            else
+            | RegularRank ->
                 collectReaches [
                     (pawnSingleMoveReaches direction, MoveType   );
                     (pawnCaptureReaches    direction, CaptureType);
@@ -185,7 +198,7 @@ let at pos placedPieces =
     |> List.tryFind (fun square -> Square.position square = pos)
     |> defaultArg <| EmptySquare pos
 
-let (@) game pos = at pos game
+let (@) placedPieces pos = at pos placedPieces
 
 type Ply =
     | Move of Piece * Position * Position
@@ -275,7 +288,9 @@ let canExecute game sourcePiece sourcePos targetPos plyType =
         targetSquare |> Square.hasPiece &&
         targetSquare |> (differentColor sourcePiece)
     | EnPassantType ->
-        let passedPawnPos = (fst targetPos, snd sourcePos)
+        let (targetFile, _) = targetPos
+        let (_, sourceRank) = sourcePos
+        let passedPawnPos = (targetFile, sourceRank)
 
         // targetSquare |> isEmpty && // THIS SHOULD BE ALWAYS TRUE
         game.enPassantPawn
@@ -512,7 +527,7 @@ and ExecutableAction = {
 
 let getFinalDisplayInfo game =
     {
-        board = Array2D.init 8  8 (fun r f ->
+        board = Array2D.init 8 8 (fun r f ->
             game.pieces @ (File.fromInt f, Rank.fromInt r)
         )
         playerToMove = None

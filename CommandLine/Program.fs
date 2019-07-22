@@ -85,7 +85,7 @@ let main argv =
 
     let chessTransition = gameTransition game handleChessActionOutcome
 
-    ignore <| stateMachine chessTransition isFinish initialState input
+    ignore <| StateMachine.stateMachine chessTransition isFinish initialState input
     printfn "Bye!"
     ignore <| Console.ReadLine()
     0

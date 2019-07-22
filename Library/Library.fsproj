@@ -9,7 +9,7 @@
     <Compile Include="Utils.fs" />
     <Compile Include="CoreTypes.fs" />
     <Compile Include="Chess.fs" />
-    <Compile Include="GameConsole2.fs" />
+    <Compile Include="StateMachine.fs" />
   </ItemGroup>
 
 </Project>
