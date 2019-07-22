@@ -80,8 +80,8 @@ module ``be ascending tests`` =
                         [
                             placedPiece White Pawn   C7
                         ]
-                    whitePlayerCastleState = cannotCastle
-                    blackPlayerCastleState = cannotCastle
+                    whitePlayerCastleState = canCastle
+                    blackPlayerCastleState = canCastle
                     pawnCapturableEnPassant = None
                     moves = List.empty
                 }
@@ -98,14 +98,34 @@ module ``be ascending tests`` =
                             placedPiece White Pawn   C7
                             placedPiece Black Rook   B8
                         ]
-                    whitePlayerCastleState = cannotCastle
-                    blackPlayerCastleState = cannotCastle
+                    whitePlayerCastleState = canCastle
+                    blackPlayerCastleState = canCastle
                     pawnCapturableEnPassant = None
                     moves = List.empty
                 }
                 |> result = [":d"; ":r"; "c8=B"; "c8=N"; "c8=Q"; "c8=R"; "cxb8=B"; "cxb8=N"; "cxb8=Q"; "cxb8=R"]
         @>
-   
+
+    [<Fact>]
+    let ``Castling not possible when intermediate squares are in check``() =
+        test <@
+                makePlayerMoveResultWithCapabilities {
+                    turn = White
+                    pieces =
+                        [
+                            placedPiece White King   E1
+                            placedPiece White Rook   H1
+                            placedPiece Black Rook   F8
+                        ]
+                    whitePlayerCastleState = canCastle
+                    blackPlayerCastleState = canCastle
+                    pawnCapturableEnPassant = None
+                    moves = List.empty
+                }
+                |> result = [":d"; ":r"; "Kd1"; "Kd2"; "Ke2"; "O-O-O"; "Rf1"; "Rg1";
+                "Rh2"; "Rh3"; "Rh4"; "Rh5"; "Rh6"; "Rh7"; "Rh8"] 
+        @>
+
     let findExecutableActionAux (input: string) availableActions =
             availableActions
             |> List.filter (fun { action = m } -> (playerActionToAlgebraic m).ToLowerInvariant() = input.ToLowerInvariant())

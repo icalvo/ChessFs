@@ -264,7 +264,7 @@ type CastleStatus = {
     canCastleQueenside: bool
 }
 
-let cannotCastle = { canCastleKingside = true; canCastleQueenside = true }
+let canCastle = { canCastleKingside = true; canCastleQueenside = true }
 
 type GameState = {
     turn: Color
