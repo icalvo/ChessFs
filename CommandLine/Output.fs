@@ -5,123 +5,7 @@ open CoreTypes
 open Chess
 open Microsoft.FSharp.Core.Printf
 open Utils
-
-// STRING REPRESENTATIONS
-
-type Shape
-with
-    member this.toString = 
-        match this with
-        | Pawn   -> "P"
-        | Knight -> "N"
-        | Bishop -> "B"
-        | Rook   -> "R"
-        | Queen  -> "Q"
-        | King   -> "K"
-
-type Rank
-with
-    member this.toString =
-        match this with
-        | R1 -> "1"
-        | R2 -> "2"
-        | R3 -> "3"
-        | R4 -> "4"
-        | R5 -> "5"
-        | R6 -> "6"
-        | R7 -> "7"
-        | R8 -> "8"
-
-type File
-with
-    member this.toAlgebraic =
-        match this with
-        | A -> "a"
-        | B -> "b"
-        | C -> "c"
-        | D -> "d"
-        | E -> "e"
-        | F -> "f"
-        | G -> "g"
-        | H -> "h"
-    member this.toNumeric =
-        match this with
-        | A -> "1"
-        | B -> "2"
-        | C -> "3"
-        | D -> "4"
-        | E -> "5"
-        | F -> "6"
-        | G -> "7"
-        | H -> "8"
-
-type Color with
-    member this.toString =
-        match this with
-        | Black -> "b"
-        | White -> "w"
-
-let positionToAlgebraic ((f, r):Position) =
-    sprintf "%s%s" f.toAlgebraic r.toString
-
-let squareToString = function
-    | EmptySquare _ -> "  "
-    | PieceSquare (Piece (color, shape), _) -> sprintf "%s%s" color.toString shape.toString
-
-let squareWithActions capList square =
-    let capabilityAt pos = capList |> Seq.tryFind (fun (_, p) -> p = pos)
-
-    let actionToString = function
-        | Move _ -> "m"
-        | Capture _ -> "x"
-        | CaptureEnPassant _ -> "p"
-        | CastleKingSide _ -> "k"
-        | CastleQueenSide _ -> "q"
-        | Promote _ -> "M"
-        | CaptureAndPromote _ -> "C"
-
-    let squareActionToString =
-        square
-        |> Square.position
-        |> capabilityAt
-        |> Option.map fst
-        |> Option.map actionToString
-        |> defaultArg <| " "
-
-    (squareToString square) + squareActionToString
-
-let plyToAlgebraic ply =
-    let (sourcePos, targetPos) = Ply.positions ply
-    let targetPosString = positionToAlgebraic targetPos
-    let sourceFile = (fst sourcePos)
-    match ply with
-    | Move (Piece (_, Pawn), _, _) ->
-        sprintf "%s" targetPosString
-    | Move (Piece (_, shape), _, _) ->
-        sprintf "%s%s" shape.toString targetPosString
-    | Capture (Piece (_, shape), _, _) ->
-        match shape with
-        | Pawn -> sprintf "%sx%s" sourceFile.toAlgebraic targetPosString
-        | _ -> sprintf "%sx%s" shape.toString targetPosString
-    | CaptureEnPassant _ -> sprintf "%sx%s" sourceFile.toAlgebraic targetPosString
-    | CastleKingSide _ -> "O-O"
-    | CastleQueenSide _ -> "O-O-O"
-    | Promote (_, _, _, tshape) -> sprintf "%s=%s" targetPosString tshape.toString
-    | CaptureAndPromote (_, _, _, tshape) -> sprintf "%sx%s=%s" sourceFile.toAlgebraic targetPosString tshape.toString
-
-let playerActionToAlgebraic = function
-    | MovePiece ply -> plyToAlgebraic ply
-    | Resign -> ":r"
-    | OfferDraw -> ":d"
-
-let printPositions =
-    List.map positionToAlgebraic >> List.iter (printf "%A")
-
-let cellColor (file: File, rank: Rank) =
-    match (file.toInt + rank.toInt) % 2 with
-    | 0 -> White
-    | 1 -> Black
-    | _ -> failwith "Cannot happen"
+open Notation
 
 // CONSOLE OUTPUT
 
@@ -200,45 +84,33 @@ let printActions =
     >> printfn "%s"
 
 let printMoves =
-    Seq.batch 2
-    >> Seq.indexed
-    >> Seq.map (fun (idx, plies) ->
-        match plies with
-        |[whitePly] -> sprintf "%i. %s" (idx+1) (plyToAlgebraic whitePly)
-        |[whitePly; blackPly] -> sprintf "%i. %s %s" (idx+1) (plyToAlgebraic whitePly) (plyToAlgebraic blackPly)
-        |_ -> "")
-    >> String.concat " "
-    >> printfn "Moves: %s"
+    movesToPGN >> printfn "Moves: %s"
  
-let printDisplayInfo displayInfo =
+let printOutcome (outcome: PlayerActionOutcome) =
+    let displayInfo = outcome.displayInfo
     printBoard displayInfo.board (Option.defaultValue White displayInfo.playerToMove)
-    printMoves displayInfo.moves
-    if displayInfo.canCastleKingside then
-        printfn "Can castle kingside"
-    if displayInfo.canCastleQueenside then
-        printfn "Can castle queenside"
+    outcome |> outcomeToSimplePGN |> printfn "%s"
     if displayInfo.isCheck && Option.isSome displayInfo.playerToMove then
         printfn "CHECK!"
     displayInfo.playerToMove
     |> Option.map (fun p -> printfn "%A to move" p) |> ignore
     printfn "" 
-
-let printOutcome = function
-    | Draw (displayInfo, _) -> 
-        displayInfo |> printDisplayInfo
-        printfn "GAME OVER - Draw"
+    match outcome with
+    | Draw (_, _, drawType) -> 
+        printfn "GAME OVER - Draw by %A" drawType
         printfn ""
-    | LostByResignation (displayInfo, player) -> 
-        displayInfo |> printDisplayInfo
+    | LostByResignation (_, player) -> 
         printfn "GAME WON because %A resigned" (opponent player)
         printfn ""
-    | WonByCheckmate (displayInfo, player) -> 
-        displayInfo |> printDisplayInfo
+    | WonByCheckmate (_, player) -> 
         printfn "GAME WON by checkmating %A" player
         printfn ""
-    | PlayerMoved (displayInfo, availableActions) -> 
-        displayInfo |> printDisplayInfo
+    | PlayerMoved (_, availableActions) -> 
         printActions availableActions
-    | DrawOffer (_, player, _) ->
+    | DrawOffer (_, player, availableActions) ->
         printfn "DRAW OFFERED by %A" player
+        printActions availableActions
+    | DrawDeclinement (_, player, availableActions) ->
+        printActions availableActions
+        printfn "DRAW DECLINED by %A" player
  

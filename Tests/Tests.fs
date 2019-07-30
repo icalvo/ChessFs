@@ -6,7 +6,8 @@ module ``be ascending tests`` =
     open Swensen.Unquote
     open CoreTypes
     open Chess
-    open Output
+    open Notation
+    open StateMachine
 
     let WhitePawn = Piece (White, Pawn)
     let BlackPawn = Piece (Black, Pawn)
@@ -83,7 +84,10 @@ module ``be ascending tests`` =
                     whitePlayerCastleState = canCastle
                     blackPlayerCastleState = canCastle
                     pawnCapturableEnPassant = None
-                    moves = List.empty
+                    plies = []
+                    pliesWithoutPawnOrCapture = 0
+                    repeatableStates = []
+                    numberOfMoves = 1
                 }
                 |> result = [":d"; ":r"; "c8=B"; "c8=N"; "c8=Q"; "c8=R"] 
         @>
@@ -101,7 +105,10 @@ module ``be ascending tests`` =
                     whitePlayerCastleState = canCastle
                     blackPlayerCastleState = canCastle
                     pawnCapturableEnPassant = None
-                    moves = List.empty
+                    plies = []
+                    pliesWithoutPawnOrCapture = 0
+                    repeatableStates = []
+                    numberOfMoves = 1
                 }
                 |> result = [":d"; ":r"; "c8=B"; "c8=N"; "c8=Q"; "c8=R"; "cxb8=B"; "cxb8=N"; "cxb8=Q"; "cxb8=R"]
         @>
@@ -115,15 +122,63 @@ module ``be ascending tests`` =
                         [
                             placedPiece White King   E1
                             placedPiece White Rook   H1
-                            placedPiece Black Rook   F8
+                            placedPiece Black Rook   G8
                         ]
                     whitePlayerCastleState = canCastle
                     blackPlayerCastleState = canCastle
                     pawnCapturableEnPassant = None
-                    moves = List.empty
+                    plies = []
+                    pliesWithoutPawnOrCapture = 0
+                    repeatableStates = []
+                    numberOfMoves = 1
                 }
-                |> result = [":d"; ":r"; "Kd1"; "Kd2"; "Ke2"; "O-O-O"; "Rf1"; "Rg1";
+                |> result = [":d"; ":r"; "Kd1"; "Kd2"; "Ke2"; "Kf1"; "Kf2"; "O-O-O"; "Rf1"; "Rg1";
                 "Rh2"; "Rh3"; "Rh4"; "Rh5"; "Rh6"; "Rh7"; "Rh8"] 
+        @>
+
+    [<Fact>]
+    let ``Castling possible when rook attacked``() =
+        test <@
+                makePlayerMoveResultWithCapabilities {
+                    turn = White
+                    pieces =
+                        [
+                            placedPiece White King   E1
+                            placedPiece White Rook   H1
+                            placedPiece Black Rook   H8
+                        ]
+                    whitePlayerCastleState = canCastle
+                    blackPlayerCastleState = canCastle
+                    pawnCapturableEnPassant = None
+                    plies = []
+                    pliesWithoutPawnOrCapture = 0
+                    repeatableStates = []
+                    numberOfMoves = 1
+                }
+                |> result = [":d"; ":r"; "Kd1"; "Kd2"; "Ke2"; "Kf1"; "Kf2"; "O-O"; "O-O-O"; "Rf1"; "Rg1";
+                "Rh2"; "Rh3"; "Rh4"; "Rh5"; "Rh6"; "Rh7"; "Rxh8"] 
+        @>
+
+    [<Fact>]
+    let ``King cannot move to check``() =
+        test <@
+                makePlayerMoveResultWithCapabilities {
+                    turn = White
+                    pieces =
+                        [
+                            placedPiece White King   E1
+                            placedPiece Black Rook   F8
+                            placedPiece Black King   H8
+                        ]
+                    whitePlayerCastleState = { canCastleKingside = false; canCastleQueenside = false }
+                    blackPlayerCastleState = { canCastleKingside = false; canCastleQueenside = false }
+                    pawnCapturableEnPassant = None
+                    plies = []
+                    pliesWithoutPawnOrCapture = 0
+                    repeatableStates = []
+                    numberOfMoves = 1
+                }
+                |> result = [":d"; ":r"; "Kd1"; "Kd2"; "Ke2" ]
         @>
 
     let findExecutableActionAux (input: string) availableActions =
@@ -139,9 +194,10 @@ module ``be ascending tests`` =
             | None -> None
         | _ -> None
 
-    let x = List.fold handleChessActionOutcome2 (Some newChessGame)
-    
     let gameStateAfterE4 = initialGameState |> nextGameState (Move (WhitePawn, E2, E4))
+
+    let gameStateAfter game move =
+        makePlayerMoveResultWithCapabilities game
 
     let gameStateWithCheck =
         initialGameState
@@ -175,4 +231,18 @@ module ``be ascending tests`` =
                     Move (Piece (Black,Pawn), E7, E6);
                     Move (Piece (Black,Pawn), E7, E5)]
         @>
+
+    let lastFEN moves =
+        moves
+        |> algebraicChessStateMachine
+        |> Seq.last
+        |> (fun x -> x.displayInfo.gameState.toFEN)
+
+    [<Fact>]
+    let ``FEN tests``() =
+        test <@ boardToFEN (getDisplayInfo initialGameState).board = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR" @>
+        test <@ boardToFEN (getDisplayInfo gameStateAfterE4).board = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR" @>
+        test <@ [ ] |> lastFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" @>
+        test <@ [ "e4" ] |> lastFEN = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1" @>
+        test <@ [ "e4"; "e5" ] |> lastFEN = "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2" @>
 

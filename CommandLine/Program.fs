@@ -1,12 +1,12 @@
 ﻿open System
 open Chess
+open Notation
 open Output
 open GameConsole
 
 let findExecutableAction (input: Lazy<string>) availableActions =
         availableActions
-        |> List.filter (fun { action = m } -> (playerActionToAlgebraic m).ToLowerInvariant() = input.Force().ToLowerInvariant())
-        |> List.tryHead
+        |> List.tryFind (fun { action = m } -> (playerActionToAlgebraic m).ToLowerInvariant() = input.Force().ToLowerInvariant())
 
 let findActionResult input availableActions = 
     let foundAction = findExecutableAction input availableActions
@@ -39,16 +39,7 @@ let askProgramAction availableActions (input: Lazy<string>) actionResult =
         let newActionResult = askActionResult input availableActions actionResult
         printOutcome newActionResult
         AskingAction newActionResult
- 
-/// Ask the user for a draw agreement.
-let askDrawAgreement (input: Lazy<string>) displayInfo player playerMovementCapabilities = 
-    printfn "Draw offered. Enter y to accept, n to reject or q to quit:"
-    match input.Force() with
-    | "y" -> AskingAction (Draw (displayInfo, player))
-    | "n" -> AskingAction (PlayerMoved (displayInfo, playerMovementCapabilities))
-    | "q" -> Exiting
-    | _   -> Exiting
-  
+
 let handleChessActionOutcome formerPlayerActionOutcome (input: Lazy<string>) =
     match formerPlayerActionOutcome with
     | Draw _ -> 
@@ -57,10 +48,10 @@ let handleChessActionOutcome formerPlayerActionOutcome (input: Lazy<string>) =
         AskingToPlayAgain
     | WonByCheckmate _ -> 
         AskingToPlayAgain
-    | PlayerMoved (_, availableActions) -> 
+    | PlayerMoved (_, availableActions)
+    | DrawOffer (_, _, availableActions)
+    | DrawDeclinement (_, _, availableActions) -> 
         askProgramAction availableActions input formerPlayerActionOutcome
-    | DrawOffer (displayInfo, player, playerMovementCapabilities) ->
-        askDrawAgreement input displayInfo player playerMovementCapabilities
 
 [<EntryPoint>]
 let main argv =
