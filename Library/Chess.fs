@@ -2,7 +2,6 @@
 open Utils
 open CoreTypes
 
-
 type Piece = Piece of Color * Shape
 let placedPiece color shape (pos: Position) = (Piece (color, shape), pos)
 
@@ -699,13 +698,13 @@ let initialGameState =
             turn = White
             pieces = initialPieces
             whitePlayerCastleState = {
-                                        canCastleKingside = true
-                                        canCastleQueenside = true
-                                     }
+                canCastleKingside = true
+                canCastleQueenside = true
+            }
             blackPlayerCastleState = {
-                                        canCastleKingside = true
-                                        canCastleQueenside = true
-                                     }
+                canCastleKingside = true
+                canCastleQueenside = true
+            }
             pawnCapturableEnPassant = None
             plies = []
             pliesWithoutPawnOrCapture = 0

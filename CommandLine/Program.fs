@@ -64,10 +64,10 @@ let main argv =
         | _ -> false
 
     // let scholarsMate = "e4 e5 Bc4 Nc6 Qh5 Nf6 Qxf7".Split(' ')
-    // let extraInput = scholarsMate;
-    let extraInput = argv |> Seq.map (fun x -> lazy(x));
+    // let commandLineInput = scholarsMate;
+    let commandLineInput = argv |> Seq.map (fun x -> lazy(x));
 
-    let input = Seq.append extraInput consoleInput
+    let input = commandLineInput |> Seq.append consoleInput
 
     let chessTransition = gameTransition game handleChessActionOutcome
 
