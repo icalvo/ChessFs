@@ -12,7 +12,7 @@
         let pipe action = Seq.map (fun x -> action x; x)
         let debug name = pipe (fun x -> if Configuration.debug then printfn "%s yields %A" name x)
         let filterNones (s: seq<'a option>): seq<'a> = Seq.choose id s
-        let takeWhilePlusOne predicate (s:seq<_>) = 
+        let takeWhileIncludingLast predicate (s:seq<_>) = 
             /// Iterates over the enumerator, yielding elements and
             /// stops after an element for which the predicate does not hold
             let rec loop (en:System.Collections.Generic.IEnumerator<_>) = seq {
@@ -49,6 +49,7 @@
                     | true -> ()
                 ]
             loop xs
+
     module List =
         let pipe action = List.map (fun x -> action x; x)
         let debug name = pipe (printfn "%s yields %A" name)
@@ -98,3 +99,7 @@
 
     let rec (*) f1 i =
         if i = 1 then f1 else f1 >> Option.bind (f1 * (i-1))
+
+    module Map =
+        let keys map = map |> Map.toList |> List.map (fun (k, _) -> k)
+        let values map = map |> Map.toList |> List.map (fun (_, v) -> v)

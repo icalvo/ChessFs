@@ -7,7 +7,7 @@ module ``be ascending tests`` =
     open CoreTypes
     open Chess
     open Notation
-    open StateMachine
+    open ChessStateMachine
 
     let WhitePawn = Piece (White, Pawn)
     let BlackPawn = Piece (Black, Pawn)
@@ -78,8 +78,8 @@ module ``be ascending tests`` =
                 makePlayerMoveResultWithCapabilities {
                     turn = White
                     pieces =
-                        [
-                            placedPiece White Pawn   C7
+                        Map.ofList [
+                            placedPiece White Pawn C7
                         ]
                     whitePlayerCastleState = canCastle
                     blackPlayerCastleState = canCastle
@@ -98,7 +98,7 @@ module ``be ascending tests`` =
                 makePlayerMoveResultWithCapabilities {
                     turn = White
                     pieces =
-                        [
+                        Map.ofList [
                             placedPiece White Pawn   C7
                             placedPiece Black Rook   B8
                         ]
@@ -119,8 +119,9 @@ module ``be ascending tests`` =
                 makePlayerMoveResultWithCapabilities {
                     turn = White
                     pieces =
-                        [
+                        Map.ofList [
                             placedPiece White King   E1
+                            placedPiece White Rook   A1
                             placedPiece White Rook   H1
                             placedPiece Black Rook   G8
                         ]
@@ -132,7 +133,8 @@ module ``be ascending tests`` =
                     repeatableStates = []
                     numberOfMoves = 1
                 }
-                |> result = [":d"; ":r"; "Kd1"; "Kd2"; "Ke2"; "Kf1"; "Kf2"; "O-O-O"; "Rf1"; "Rg1";
+                |> result = [":d"; ":r"; "Kd1"; "Kd2"; "Ke2"; "Kf1"; "Kf2"; "O-O-O"; "Ra2"; "Ra3"; "Ra4";
+                "Ra5"; "Ra6"; "Ra7"; "Ra8"; "Rb1"; "Rc1"; "Rd1"; "Rf1"; "Rg1";
                 "Rh2"; "Rh3"; "Rh4"; "Rh5"; "Rh6"; "Rh7"; "Rh8"] 
         @>
 
@@ -142,9 +144,10 @@ module ``be ascending tests`` =
                 makePlayerMoveResultWithCapabilities {
                     turn = White
                     pieces =
-                        [
+                        Map.ofList [
                             placedPiece White King   E1
                             placedPiece White Rook   H1
+                            placedPiece White Rook   A1
                             placedPiece Black Rook   H8
                         ]
                     whitePlayerCastleState = canCastle
@@ -155,7 +158,8 @@ module ``be ascending tests`` =
                     repeatableStates = []
                     numberOfMoves = 1
                 }
-                |> result = [":d"; ":r"; "Kd1"; "Kd2"; "Ke2"; "Kf1"; "Kf2"; "O-O"; "O-O-O"; "Rf1"; "Rg1";
+                |> result = [":d"; ":r"; "Kd1"; "Kd2"; "Ke2"; "Kf1"; "Kf2"; "O-O"; "O-O-O"; "Ra2"; "Ra3"; "Ra4";
+                "Ra5"; "Ra6"; "Ra7"; "Ra8"; "Rb1"; "Rc1"; "Rd1"; "Rf1"; "Rg1";
                 "Rh2"; "Rh3"; "Rh4"; "Rh5"; "Rh6"; "Rh7"; "Rxh8"] 
         @>
 
@@ -165,7 +169,7 @@ module ``be ascending tests`` =
                 makePlayerMoveResultWithCapabilities {
                     turn = White
                     pieces =
-                        [
+                        Map.ofList [
                             placedPiece White King   E1
                             placedPiece Black Rook   F8
                             placedPiece Black King   H8

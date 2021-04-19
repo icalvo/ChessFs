@@ -17,7 +17,7 @@ let askToPlayAgain newGame (input: Lazy<string>) =
     | _ ->
         AskingToPlayAgain
 
-let gameTransition newGame handle state input =
+let gameConsoleTransition newGame handle state input =
     match state with
     | AskingAction a ->
         handle a input

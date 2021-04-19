@@ -3,7 +3,7 @@ open Utils
 open CoreTypes
 
 type Piece = Piece of Color * Shape
-let placedPiece color shape (pos: Position) = (Piece (color, shape), pos)
+let placedPiece color shape (pos: Position) = pos, Piece (color, shape)
 
 type PlyType =
     | MoveType
@@ -45,7 +45,7 @@ module Reach =
     let kingReaches pos: Reach =
         [ UpRight; DownRight; DownLeft; UpLeft; Up; Right; Down; Left ]
         |> List.apply pos
-        |> List.choose id
+        |> List.filterNones
         |> List.map Seq.singleton
 
     let knightReaches pos: Reach =
@@ -60,11 +60,12 @@ module Reach =
             Left >?> Left >?> Down;
         ]
         |> List.apply pos
-        |> List.choose id
+        |> List.filterNones
         |> List.map Seq.singleton
 
     let pawnSingleMoveReaches pawnDirection pos: Reach =
-        Seq.unfoldSimple pawnDirection pos
+        pos
+        |> Seq.unfoldSimple pawnDirection
         |> Seq.take 1
         |> List.singleton
 
@@ -142,10 +143,26 @@ module Reach =
                     (pawnSingleMoveReaches direction, MoveType   );
                     (pawnCaptureReaches    direction, CaptureType);
                 ]
-        | Piece (_, Knight) -> collectReaches [(knightReaches, MoveType);(knightReaches, CaptureType)]
-        | Piece (_, Bishop) -> collectReaches [(bishopReaches, MoveType);(bishopReaches, CaptureType)]
-        | Piece (_, Rook  ) -> collectReaches [(rookReaches, MoveType);(rookReaches, CaptureType)]
-        | Piece (_, Queen ) -> collectReaches [(queenReaches, MoveType);(queenReaches, CaptureType)]
+        | Piece (_, Knight) ->
+            collectReaches [
+                (knightReaches, MoveType);
+                (knightReaches, CaptureType)
+            ]
+        | Piece (_, Bishop) ->
+            collectReaches [
+                (bishopReaches, MoveType);
+                (bishopReaches, CaptureType)
+            ]
+        | Piece (_, Rook  ) ->
+            collectReaches [
+                (rookReaches, MoveType);
+                (rookReaches, CaptureType)
+            ]
+        | Piece (_, Queen ) ->
+            collectReaches [
+                (queenReaches, MoveType);
+                (queenReaches, CaptureType)
+             ]
         | Piece (White, King  ) ->
             collectReaches [
                 (kingReaches, MoveType);
@@ -191,13 +208,14 @@ module Square =
         | PieceSquare (_, pos) -> pos
         | EmptySquare pos -> pos
 
-let at pos placedPieces =
-    placedPieces
-    |> List.map PieceSquare
-    |> List.tryFind (fun square -> Square.position square = pos)
-    |> defaultArg <| EmptySquare pos
+let pieceAt pos placedPieces =
+    let found = placedPieces |> Map.tryFind pos
 
-let (@@) placedPieces pos = at pos placedPieces
+    match found with
+    | Some x -> PieceSquare (x, pos)
+    | None -> EmptySquare pos
+
+let (@@) placedPieces pos = pieceAt pos placedPieces
 
 type Ply =
     | Move of Piece * Position * Position
@@ -272,7 +290,7 @@ type GameState = {
     whitePlayerCastleState: CastleStatus
     blackPlayerCastleState: CastleStatus
     pawnCapturableEnPassant: Position option
-    pieces: (Piece * Position) list
+    pieces: Map<(File * Rank), Piece>
     plies: Ply list
     pliesWithoutPawnOrCapture: int
     repeatableStates: GameState list
@@ -288,7 +306,7 @@ with
         |> List.filter (fun r -> r.pieces = this.pieces)
         |> List.length
 
-let (@@@) game pos = at pos game.pieces
+let (@@@) game pos = pieceAt pos game.pieces
 
 let toPly (Piece (color, shape), sourcePosition, plyType, targetPosition) =
     let p = Piece (color, shape)
@@ -366,7 +384,7 @@ let reachCapabilities game piece sourcePos (plyTypeToAnalyze: PlyType) reach =
 
     reach
     |> Seq.map (evaluateReachSquare game plyTypeToAnalyze piece sourcePos)
-    |> Seq.takeWhilePlusOne (actionIs MoveType)
+    |> Seq.takeWhileIncludingLast (actionIs MoveType)
     |> Seq.filter (actionIs plyTypeToAnalyze)
     |> Seq.filterNones
 
@@ -376,7 +394,7 @@ let pieceCapabilitiesWithoutCheckFilter game piece sourcePos =
     |> Seq.collect toPlies
 
 /// <summary>Determines the attacks a piece of the game is making.</summary>
-let attacksBy game (piece, position) =
+let attacksBy game (position, piece) =
     pieceCapabilitiesWithoutCheckFilter game piece position
     |> Seq.map Ply.captureTarget
     |> Seq.filterNones
@@ -384,7 +402,8 @@ let attacksBy game (piece, position) =
 /// <summary>Determines the attacks a player is making.</summary>
 let attacks col game =
     game.pieces
-    |> Seq.filter (fun (Piece (pieceColor, _), _) -> pieceColor = col)
+    |> Map.filter (fun _ (Piece (pieceColor, _)) -> pieceColor = col)
+    |> Map.toSeq
     |> Seq.collect (attacksBy game)
 
 let isAttackedBy attackingColor game targetPosition =
@@ -396,22 +415,30 @@ let private rawBoardChange pieces boardChange =
     match boardChange with
     | BoardChange.MovePiece (sourcePos, targetPos) ->
         match pieces @@ sourcePos with
-        | EmptySquare _ -> pieces |> List.filter (fun (_, position) -> position <> targetPos)
-        | PieceSquare (piece, _) -> (piece, targetPos) :: (pieces |> List.filter (fun (_, position) -> position <> sourcePos && position <> targetPos))
-    | BoardChange.RemovePiece pos -> pieces |> List.filter (fun (_, position) -> position <> pos)
+        | EmptySquare _ ->
+            failwith (sprintf "Trying to move a piece at %A but there is no piece there." sourcePos)
+        | PieceSquare (piece, _) ->
+            pieces
+            |> Map.remove sourcePos
+            |> Map.remove targetPos
+            |> Map.add targetPos piece
+    | BoardChange.RemovePiece pos ->
+        pieces
+        |> Map.remove pos
     | BoardChange.AddPiece (col, shp, pos) ->
-        (Piece (col, shp), pos) :: (pieces |> List.filter (fun (_, position) -> position <> pos))
+        pieces
+        |> Map.remove pos
+        |> Map.add pos (Piece (col, shp))
 
 let isCheck color game =
     game.pieces
-    |> Seq.tryFind (fun (piece, _) -> piece = Piece (color, King))
-    |> Option.map (fun (_, pos) -> pos)
+    |> Map.tryFindKey (fun _ piece -> piece = Piece (color, King))
     |> Option.map (isAttackedBy (opposite color) game)
     |> defaultArg <| false
 
 let opponent = opposite
 
-let rawExecutePly (ply:Ply) (pieces:(Piece*Position) list) =
+let rawExecutePly (ply:Ply) (pieces:Map<Position, Piece>) =
     Ply.boardChanges ply
     |> List.fold rawBoardChange pieces
 
@@ -579,13 +606,14 @@ let getDisplayInfo game =
 
 // given a player & a gameState, it returns the possible player actions.
 let playerPlies gameState =
-    let getCapabilities (sourcePiece, sourcePos) =
+    let getCapabilities (sourcePos, sourcePiece) =
         pieceCapabilities gameState (sourcePiece, sourcePos)
 
-    let belongsToPlayer (Piece (pieceColor, _), _) = pieceColor = gameState.turn
+    let belongsToPlayer _ (Piece (pieceColor, _)) = pieceColor = gameState.turn
     
     gameState.pieces
-    |> Seq.filter belongsToPlayer
+    |> Map.filter belongsToPlayer
+    |> Map.toSeq
     |> Seq.collect getCapabilities
 
 // given a player & a gameState, it returns a move result for that player.
@@ -606,6 +634,7 @@ and getDrawOfferActions gameState actionsBeforeOffer =
     [AcceptDraw;DeclineDraw actionsBeforeOffer]
     |> Seq.map (makeNextMoveInfo gameState)
     |> Seq.toList
+
 // Convert possible plies to executable actions, adding Resign and OfferDraw
 and getExecutableActions plies gameState =
     let movePieces = plies |> Seq.map MovePiece
@@ -629,7 +658,7 @@ and executePlayerAction gameState playerAction: PlayerActionOutcome =
         if gameState.pliesWithoutPawnOrCapture >= 75 then
             let displayInfo = getFinalDisplayInfo newGameState
             Draw (displayInfo, gameState.turn, SeventyFiveMovements)
-        elif (newGameState.repeatableStates |> List.filter (fun r -> r.pieces = newGameState.pieces) |> List.length) >= 5 then
+        elif newGameState.repeated >= 5 then
             let displayInfo = getFinalDisplayInfo newGameState
             Draw (displayInfo, gameState.turn, FivefoldRepetition)
         else
@@ -648,7 +677,7 @@ and executePlayerAction gameState playerAction: PlayerActionOutcome =
         if gameState.pliesWithoutPawnOrCapture >= 50 then
             let displayInfo = getFinalDisplayInfo gameState
             Draw (displayInfo, gameState.turn, FiftyMovements)
-        elif (gameState.repeatableStates |> List.filter (fun r -> r.pieces = gameState.pieces) |> List.length) >= 3 then
+        elif gameState.repeated >= 3 then
             let displayInfo = getFinalDisplayInfo gameState
             Draw (displayInfo, gameState.turn, ThreefoldRepetition)
         else
@@ -658,7 +687,7 @@ and executePlayerAction gameState playerAction: PlayerActionOutcome =
             DrawOffer (displayInfo, newGameState.turn, drawOfferActions)
 
 let initialGameState =
-    let initialPieces = [
+    let initialPieces = Map.ofList [
         placedPiece White Rook   A1
         placedPiece White Knight B1
         placedPiece White Bishop C1
@@ -693,25 +722,22 @@ let initialGameState =
         placedPiece Black Rook   H8
     ]
 
-    let tempGameState =
-        {
-            turn = White
-            pieces = initialPieces
-            whitePlayerCastleState = {
-                canCastleKingside = true
-                canCastleQueenside = true
-            }
-            blackPlayerCastleState = {
-                canCastleKingside = true
-                canCastleQueenside = true
-            }
-            pawnCapturableEnPassant = None
-            plies = []
-            pliesWithoutPawnOrCapture = 0
-            repeatableStates = []
-            numberOfMoves = 1
+    {
+        turn = White
+        pieces = initialPieces
+        whitePlayerCastleState = {
+            canCastleKingside = true
+            canCastleQueenside = true
         }
-
-    { tempGameState with repeatableStates = [ tempGameState ]}
+        blackPlayerCastleState = {
+            canCastleKingside = true
+            canCastleQueenside = true
+        }
+        pawnCapturableEnPassant = None
+        plies = []
+        pliesWithoutPawnOrCapture = 0
+        repeatableStates = []
+        numberOfMoves = 1
+    }
 
 let newChessGame = makePlayerMoveResultWithCapabilities initialGameState

@@ -3,6 +3,7 @@ open Chess
 open Notation
 open Output
 open GameConsole
+open ChessStateMachine
 
 let findExecutableAction (input: Lazy<string>) availableActions =
         availableActions
@@ -42,10 +43,8 @@ let askProgramAction availableActions (input: Lazy<string>) actionResult =
 
 let handleChessActionOutcome formerPlayerActionOutcome (input: Lazy<string>) =
     match formerPlayerActionOutcome with
-    | Draw _ -> 
-        AskingToPlayAgain
-    | LostByResignation _ -> 
-        AskingToPlayAgain
+    | Draw _
+    | LostByResignation _
     | WonByCheckmate _ -> 
         AskingToPlayAgain
     | PlayerMoved (_, availableActions)
@@ -53,15 +52,16 @@ let handleChessActionOutcome formerPlayerActionOutcome (input: Lazy<string>) =
     | DrawDeclinement (_, _, availableActions) -> 
         askProgramAction availableActions input formerPlayerActionOutcome
 
+let isFinish = function
+    | Exiting -> true
+    | _ -> false
+
 [<EntryPoint>]
 let main argv =
     let game = newChessGame
 
     printOutcome game
     let initialState = AskingAction game
-    let isFinish = function
-        | Exiting -> true
-        | _ -> false
 
     // let scholarsMate = "e4 e5 Bc4 Nc6 Qh5 Nf6 Qxf7".Split(' ')
     // let commandLineInput = scholarsMate;
@@ -69,8 +69,8 @@ let main argv =
 
     let input = commandLineInput |> Seq.append consoleInput
 
-    let chessTransition = gameTransition game handleChessActionOutcome
+    let chessConsoleTransition = gameConsoleTransition game handleChessActionOutcome
 
-    ignore <| StateMachine.stateMachine chessTransition isFinish initialState input
+    ignore <| StateMachine.listedStateMachine chessConsoleTransition isFinish initialState input
     printfn "Bye!"
     0

@@ -64,6 +64,8 @@ with
         | G -> 6
         | H -> 7
 
+type Position = File * Rank
+
 let A1 = (A, R1)
 let A2 = (A, R2)
 let A3 = (A, R3)
@@ -128,8 +130,6 @@ let H5 = (H, R5)
 let H6 = (H, R6)
 let H7 = (H, R7)
 let H8 = (H, R8)
-
-type Position = File * Rank
 
 module Rank =
     let next: Position -> Position option = function
