@@ -66,7 +66,8 @@ module ``be ascending tests`` =
         >> List.sort
         
     let result = function
-        | PlayerMoved (displayInfo, availableActions) ->
+        | GameStarted (_, availableActions)
+        | PlayerMoved (_, availableActions) ->
             result2 availableActions
         | _ -> List.empty
 
@@ -192,6 +193,7 @@ module ``be ascending tests`` =
 
     let handleChessActionOutcome2 formerPlayerActionOutcome (input: string) =
         match formerPlayerActionOutcome with
+        | Some (GameStarted (_, availableActions))
         | Some (PlayerMoved (_, availableActions)) ->
             match findExecutableActionAux input availableActions with
             | Some x -> Some (x.execute())

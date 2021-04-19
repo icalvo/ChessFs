@@ -3,7 +3,6 @@ open Chess
 open Notation
 open Output
 open GameConsole
-open ChessStateMachine
 
 let findExecutableAction (input: Lazy<string>) availableActions =
         availableActions
@@ -47,6 +46,7 @@ let handleChessActionOutcome formerPlayerActionOutcome (input: Lazy<string>) =
     | LostByResignation _
     | WonByCheckmate _ -> 
         AskingToPlayAgain
+    | GameStarted (_, availableActions)
     | PlayerMoved (_, availableActions)
     | DrawOffer (_, _, availableActions)
     | DrawDeclinement (_, _, availableActions) -> 

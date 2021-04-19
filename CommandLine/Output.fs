@@ -105,7 +105,10 @@ let printOutcome (outcome: PlayerActionOutcome) =
     | WonByCheckmate (_, player) -> 
         printfn "GAME WON by checkmating %A" player
         printfn ""
-    | PlayerMoved (_, availableActions) -> 
+    | PlayerMoved (_, availableActions) ->
+        printActions availableActions
+    | GameStarted (_, availableActions) -> 
+        printfn "GAME STARTED"
         printActions availableActions
     | DrawOffer (_, player, availableActions) ->
         printfn "DRAW OFFERED by %A" player

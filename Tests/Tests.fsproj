@@ -6,6 +6,10 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <WarningsAsErrors>3239;FS0025</WarningsAsErrors>
+  </PropertyGroup>
+
   <ItemGroup>
     <Compile Include="UtilsTests.fs" />
     <Compile Include="Tests.fs" />

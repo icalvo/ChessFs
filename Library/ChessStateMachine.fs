@@ -15,7 +15,10 @@ let chessTransition2 former input equality =
             former
         | WonByCheckmate _ -> 
             former
-        | PlayerMoved (_, availableActions) | DrawOffer (_, _, availableActions) | DrawDeclinement (_, _, availableActions) ->
+        | GameStarted (_, availableActions)
+        | PlayerMoved (_, availableActions)
+        | DrawOffer (_, _, availableActions)
+        | DrawDeclinement (_, _, availableActions) ->
             let executableAction = 
                 availableActions
                 |> List.tryFind (fun x -> equality x.action input)
@@ -32,7 +35,10 @@ let chessTransition former input equality =
         former
     | WonByCheckmate _ -> 
         former
-    | PlayerMoved (_, availableActions) | DrawOffer (_, _, availableActions) | DrawDeclinement (_, _, availableActions) ->
+    | GameStarted (_, availableActions)
+    | PlayerMoved (_, availableActions)
+    | DrawOffer (_, _, availableActions)
+    | DrawDeclinement (_, _, availableActions) ->
         let executableAction = 
             availableActions
             |> List.tryFind (fun x -> equality x.action input)

@@ -152,11 +152,10 @@ let outcomeToSimplePGN = function
     match player with
     | Black -> sprintf "%s# 1-0" (movesToPGN displayInfo.moves)
     | White -> sprintf "%s# 0-1" (movesToPGN displayInfo.moves)
+| GameStarted _ ->
+    "Game started!"
 | PlayerMoved (displayInfo, _) ->
-    if List.isEmpty displayInfo.moves then
-        ""
-    else
-        movesToPGN displayInfo.moves
+    movesToPGN displayInfo.moves
 | DrawOffer (displayInfo, _, _) ->
     sprintf "%s" (movesToPGN displayInfo.moves)
 
@@ -173,11 +172,10 @@ let outcomeToPGN = function
     match player with
     | Black -> sprintf "%s# 1-0" (movesToPGN displayInfo.moves)
     | White -> sprintf "%s# 0-1" (movesToPGN displayInfo.moves)
+| GameStarted _ ->
+    ""
 | PlayerMoved (displayInfo, _) ->
-    if List.isEmpty displayInfo.moves then
-        ""
-    else
-        movesToPGN displayInfo.moves
+    movesToPGN displayInfo.moves
 | DrawOffer (displayInfo, _, _) ->
     sprintf "%s {Draw offered}" (movesToPGN displayInfo.moves)
 

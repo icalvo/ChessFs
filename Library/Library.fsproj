@@ -4,6 +4,10 @@
     <TargetFramework>netstandard2.1</TargetFramework>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <WarningsAsErrors>3239;FS0025</WarningsAsErrors>
+  </PropertyGroup>
+
   <ItemGroup>
     <Compile Include="Configuration.fs" />
     <Compile Include="Utils.fs" />
