@@ -226,9 +226,14 @@ type Ply =
     | CaptureAndPromote of Color * Position * Position * Shape
 
 type PlyOutput =
-| RegularPly of Ply
-| CheckPly of Ply
-| CheckmatePly of Ply
+    | RegularPly of Ply
+    | CheckPly of Ply
+    | CheckmatePly of Ply
+    member x.ply =
+        match x with
+        | RegularPly ply -> ply
+        | CheckPly ply -> ply
+        | CheckmatePly ply -> ply
 
 type BoardChange =
     | MovePiece of Position * Position
@@ -327,7 +332,7 @@ type GameState = {
     blackPlayerCastleState: CastleStatus
     pawnCapturableEnPassant: Position option
     pieces: Map<(File * Rank), Piece>
-    plies: Ply list
+    plies: PlyOutput list
     pliesWithoutPawnOrCapture: int
     repeatableStates: RepetitionState list
     numberOfMoves: int
@@ -521,7 +526,7 @@ let nextGameState (ply:Ply) gameState =
         | _ -> false
     let hasStructureChanged = Ply.isCapture ply || Ply.shape ply = Pawn
 
-    {
+    let newGameStateTemp = {
         turn = otherPlayer
         pieces = gameState.pieces |> rawExecutePly ply
         pawnCapturableEnPassant =
@@ -547,13 +552,24 @@ let nextGameState (ply:Ply) gameState =
                     gameState.whitePlayerCastleState.canCastleQueenside &&
                     not plyPreventsWhiteCastleQueenside
             }
-        plies = ply::gameState.plies
+        plies = gameState.plies
         pliesWithoutPawnOrCapture = if hasStructureChanged then 0 else gameState.pliesWithoutPawnOrCapture + 1
         repeatableStates = if hasStructureChanged then [] else gameState.repeatableState :: gameState.repeatableStates
         numberOfMoves =
             match gameState.turn with
             | White -> gameState.numberOfMoves
             | Black -> gameState.numberOfMoves + 1
+    }
+
+    let isCheck = isCheck newGameStateTemp.turn newGameStateTemp
+
+    let newPlyOutput = 
+        match isCheck with
+        | true -> CheckPly ply
+        | false -> RegularPly ply
+
+    { newGameStateTemp with
+        plies = newPlyOutput :: newGameStateTemp.plies
     }
 
 let pieceCapabilities game (piece, sourcePos) =
@@ -570,7 +586,7 @@ type DisplayInfo = {
     isCheck: bool
     canCastleKingside: bool
     canCastleQueenside: bool
-    moves: Ply list
+    moves: PlyOutput list
     gameState: GameState
 }
 
@@ -663,12 +679,12 @@ let playerPlies gameState =
 
 // given a player & a gameState, it returns a move result for that player.
 let rec makePlayerMoveResultWithCapabilities gameState =
-    let displayInfo = getDisplayInfo gameState
     let playerPlies = playerPlies gameState
     let canMove = playerPlies |> (not << Seq.isEmpty)
     if canMove then
         let playerMovementCapabilities =
             getExecutableActions playerPlies gameState
+        let displayInfo = getDisplayInfo gameState
         match gameState.plies |> List.length with
         | 0 -> GameStarted (displayInfo, playerMovementCapabilities)
         | _ -> PlayerMoved (displayInfo, playerMovementCapabilities)

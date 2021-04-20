@@ -1,6 +1,5 @@
 ﻿namespace ChessFs.Tests
 
-
 module ``transitions`` =
     open Xunit
     open Swensen.Unquote
@@ -14,6 +13,15 @@ module ``transitions`` =
          |> List.tryHead
 
     let equality m (input:string) = (playerActionToAlgebraic m).ToLowerInvariant() = input.ToLowerInvariant()
+
+    [<Fact>]
+    let ``Stalemate``() =
+        test <@
+                ["e3"; "a5";"Qh5";"Ra6";"Qxa5";"h5";"h4";"Rah6";"Qxc7";"f6";"Qxd7";"Kf7";"Qxb7";"Qd3"; "Qxb8";"Qh7"; "Qxc8"; "Kg6"; "Qe6"]
+                |> algebraicChessStateMachine
+                |> Seq.last
+                |> outcomeToPGN = "1. e3 a5 2. Qh5 Ra6 3. Qxa5 h5 4. h4 Rah6 5. Qxc7 f6 6. Qxd7+ Kf7 7. Qxb7 Qd3 8. Qxb8 Qh7 9. Qxc8 Kg6 10. Qe6 1/2-1/2 {Stalemate}"
+        @>
 
     [<Fact>]
     let ``Fool's mate``() =
@@ -50,7 +58,7 @@ module ``transitions`` =
         @>
 
     [<Fact>]
-    let ``Draw offer after three-fold repetition``() =
+    let ``After three-fold repetition, a draw offer is automatically accepted``() =
         let outcomes =
             [ "Nc3"; "Nc6"; "Nb1"; "Nb8"; "Nc3"; "Nc6"; "Nb1"; "Nb8"; "Nc3"; "Nc6"; "Nb1"; "Nb8"; ":d"; ]
             |> algebraicChessStateMachine
@@ -61,7 +69,7 @@ module ``transitions`` =
         @>
 
     [<Fact>]
-    let ``Draw offer after three-fold repetition in the past``() =
+    let ``After three-fold repetition in the past, a draw offer is NOT automatically accepted``() =
         let outcomes =
             [ "Nc3"; "Nc6"; "Nb1"; "Nb8"; "Nc3"; "Nc6"; "Nb1"; "Nb8"; "Nc3"; "Nc6"; "Nb1"; "Nb8"; "e4"; ":d"; ]
             |> algebraicChessStateMachine
@@ -81,7 +89,7 @@ module ``transitions`` =
         @>
 
     [<Fact>]
-    let ``Five-fold repetition``() =
+    let ``After a five-fold repetition, it's a draw``() =
         let outcomes =
             [ "Nc3"; "Nc6"; "Nb1"; "Nb8"; "Nc3"; "Nc6"; "Nb1"; "Nb8"; "Nc3"; "Nc6"; "Nb1"; "Nb8"; "Nc3"; "Nc6"; "Nb1"; "Nb8"; "Nc3"; "Nc6"; "Nb1"; "Nb8"; "Nc3"; "Nc6"; "Nb1";  ]
             |> algebraicChessStateMachine

@@ -94,27 +94,34 @@ let squareWithActions capList square =
 
     (squareToString square) + squareActionToString
 
-let plyToAlgebraic ply =
+let plyOutputSuffix = function
+    | RegularPly _ -> ""
+    | CheckPly _ -> "+"
+    | CheckmatePly _ -> "#"
+
+let plyToAlgebraic plyOutput =
+    let suffix = plyOutputSuffix plyOutput
+    let ply = plyOutput.ply
     let (sourcePos, targetPos) = Ply.positions ply
     let targetPosString = positionToAlgebraic targetPos
     let sourceFile = (fst sourcePos)
     match ply with
     | Move (Piece (_, Pawn), _, _) ->
-        sprintf "%s" targetPosString
+        sprintf "%s%s" targetPosString suffix
     | Move (Piece (_, shape), _, _) ->
-        sprintf "%s%s" shape.toString targetPosString
+        sprintf "%s%s%s" shape.toString targetPosString suffix
     | Capture (Piece (_, shape), _, _) ->
         match shape with
-        | Pawn -> sprintf "%sx%s" sourceFile.toAlgebraic targetPosString
+        | Pawn -> sprintf "%sx%s%s" sourceFile.toAlgebraic targetPosString suffix
         | _ -> sprintf "%sx%s" shape.toString targetPosString
-    | CaptureEnPassant _ -> sprintf "%sx%s" sourceFile.toAlgebraic targetPosString
-    | CastleKingSide _ -> "O-O"
-    | CastleQueenSide _ -> "O-O-O"
-    | Promote (_, _, _, tshape) -> sprintf "%s=%s" targetPosString tshape.toString
-    | CaptureAndPromote (_, _, _, tshape) -> sprintf "%sx%s=%s" sourceFile.toAlgebraic targetPosString tshape.toString
+    | CaptureEnPassant _ -> sprintf "%sx%s%s" sourceFile.toAlgebraic targetPosString suffix
+    | CastleKingSide _ -> sprintf "O-O%s" suffix
+    | CastleQueenSide _ -> sprintf "O-O-O%s" suffix
+    | Promote (_, _, _, tshape) -> sprintf "%s=%s%s" targetPosString tshape.toString suffix
+    | CaptureAndPromote (_, _, _, tshape) -> sprintf "%sx%s=%s%s" sourceFile.toAlgebraic targetPosString tshape.toString suffix
 
 let playerActionToAlgebraic = function
-    | MovePiece ply -> plyToAlgebraic ply
+    | MovePiece ply -> plyToAlgebraic (RegularPly ply)
     | Resign -> ":r"
     | OfferDraw _ -> ":d"
     | AcceptDraw -> ":a"

@@ -212,22 +212,22 @@ module ``be ascending tests`` =
         |> nextGameState (Move (WhitePawn, F2, F3))
         |> nextGameState (Move (Piece (Black, Queen), D8, H4))
 
-    [<Fact>]
-    let ``Black available actions``() =
-        test <@
-                makePlayerMoveResultWithCapabilities gameStateAfterE4
-                |> result = [":d"; ":r"; "Na6"; "Nc6"; "Nf6"; "Nh6"; "a5"; "a6"; "b5"; "b6"; "c5"; "c6"; "d5"; "d6"; "e5"; "e6"; "f5";
- "f6"; "g5"; "g6"; "h5"; "h6"]
-        @>
+ ////   [<Fact>]
+ ////   let ``Black available actions``() =
+ ////       test <@
+ ////               makePlayerMoveResultWithCapabilities gameStateAfterE4
+ ////               |> result = [":d"; ":r"; "Na6"; "Nc6"; "Nf6"; "Nh6"; "a5"; "a6"; "b5"; "b6"; "c5"; "c6"; "d5"; "d6"; "e5"; "e6"; "f5";
+ ////"f6"; "g5"; "g6"; "h5"; "h6"]
+ ////       @>
 
-    [<Fact>]
-    let ``Black available player plies``() =
-        test <@
-                playerPlies gameStateAfterE4
-                |> Seq.toList
-                |> result4 = ["Na6"; "Nc6"; "Nf6"; "Nh6"; "a5"; "a6"; "b5"; "b6"; "c5"; "c6"; "d5"; "d6"; "e5"; "e6"; "f5";
- "f6"; "g5"; "g6"; "h5"; "h6"]
-        @>
+ ////   [<Fact>]
+ ////   let ``Black available player plies``() =
+ ////       test <@
+ ////               playerPlies gameStateAfterE4
+ ////               |> Seq.toList
+ ////               |> result4 = ["Na6"; "Nc6"; "Nf6"; "Nh6"; "a5"; "a6"; "b5"; "b6"; "c5"; "c6"; "d5"; "d6"; "e5"; "e6"; "f5";
+ ////"f6"; "g5"; "g6"; "h5"; "h6"]
+ ////       @>
 
     [<Fact>]
     let ``Black piece capabilities``() =
