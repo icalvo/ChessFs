@@ -146,45 +146,46 @@ let movesToPGN =
         |_ -> "")
     >> String.concat " "
 
-let outcomeToSimplePGN = function
-| Draw (displayInfo, _, _) ->
-    sprintf "%s 1/2-1/2" (movesToPGN displayInfo.moves)
-| DrawDeclinement (displayInfo, _, _) ->
-    sprintf "%s" (movesToPGN displayInfo.moves)
-| LostByResignation (displayInfo, player) ->
-    match player with
-    | Black -> sprintf "%s 1-0" (movesToPGN displayInfo.moves)
-    | White -> sprintf "%s 0-1" (movesToPGN displayInfo.moves)
-| WonByCheckmate (displayInfo, player) -> 
-    match player with
-    | Black -> sprintf "%s# 1-0" (movesToPGN displayInfo.moves)
-    | White -> sprintf "%s# 0-1" (movesToPGN displayInfo.moves)
-| GameStarted _ ->
-    "Game started!"
-| PlayerMoved (displayInfo, _) ->
-    movesToPGN displayInfo.moves
-| DrawOffer (displayInfo, _, _) ->
-    sprintf "%s" (movesToPGN displayInfo.moves)
+let outcomeToResult outcome =
+    match outcome with
+    | Draw (_, _, drawType) ->
+        sprintf "1/2-1/2 {%A}" drawType
+    | DrawOffer _ ->
+        "{Draw offered}"
+    | DrawDeclinement _ ->
+        "{Draw declined}"
+    | LostByResignation (_, player)
+    | WonByCheckmate (_, player) -> 
+        match player with
+        | Black -> "1-0"
+        | White -> "0-1"
+    | _ ->
+        ""
 
-let outcomeToPGN = function
-| Draw (displayInfo, _, drawType) ->
-    sprintf "%s 1/2-1/2 {%A}" (movesToPGN displayInfo.moves) drawType
-| DrawDeclinement (displayInfo, _, _) ->
-    sprintf "%s {Draw declined}" (movesToPGN displayInfo.moves)
-| LostByResignation (displayInfo, player) ->
-    match player with
-    | Black -> sprintf "%s 1-0" (movesToPGN displayInfo.moves)
-    | White -> sprintf "%s 0-1" (movesToPGN displayInfo.moves)
-| WonByCheckmate (displayInfo, player) -> 
-    match player with
-    | Black -> sprintf "%s# 1-0" (movesToPGN displayInfo.moves)
-    | White -> sprintf "%s# 0-1" (movesToPGN displayInfo.moves)
-| GameStarted _ ->
-    ""
-| PlayerMoved (displayInfo, _) ->
-    movesToPGN displayInfo.moves
-| DrawOffer (displayInfo, _, _) ->
-    sprintf "%s {Draw offered}" (movesToPGN displayInfo.moves)
+let outcomeToSimpleResult outcome =
+    match outcome with
+    | Draw _ ->
+        "1/2-1/2"
+    | LostByResignation (_, player)
+    | WonByCheckmate (_, player) -> 
+        match player with
+        | Black -> "1-0"
+        | White -> "0-1"
+    | _ ->
+        ""
+
+let movesOutput outcome =
+    match outcome with
+    | WonByCheckmate (displayInfo, _) ->
+        sprintf "%s#" ((movesToPGN displayInfo.moves).TrimEnd('+'))
+    | _ ->
+        movesToPGN outcome.displayInfo.moves
+    
+let outcomeToPGN outcome =
+    sprintf "%s# %s" (movesOutput outcome) (outcomeToResult outcome)
+
+let outcomeToSimplePGN outcome =
+    sprintf "%s# %s" (movesOutput outcome) (outcomeToSimpleResult outcome)
 
 let boardToFEN (b: Square[,]) =
     let rowFolder (list, empties) square =
