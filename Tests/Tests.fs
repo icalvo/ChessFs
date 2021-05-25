@@ -175,8 +175,8 @@ module ``be ascending tests`` =
                             placedPiece Black Rook   F8
                             placedPiece Black King   H8
                         ]
-                    whitePlayerCastleState = { canCastleKingside = false; canCastleQueenside = false }
-                    blackPlayerCastleState = { canCastleKingside = false; canCastleQueenside = false }
+                    whitePlayerCastleState = { canCastleKingSide = false; canCastleQueenSide = false }
+                    blackPlayerCastleState = { canCastleKingSide = false; canCastleQueenSide = false }
                     pawnCapturableEnPassant = None
                     plies = []
                     pliesWithoutPawnOrCapture = 0

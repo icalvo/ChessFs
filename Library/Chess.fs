@@ -102,24 +102,24 @@ module Reach =
 
     let pieceReaches piece pos =
 
-        let applyReaches (reachesfn, act: PlyType) =
+        let applyReaches (reachesFunc, act: PlyType) =
             pos
-            |> reachesfn
+            |> reachesFunc
             |> List.filter (not << Seq.isEmpty)
-            |> List.map (fun (reach) -> (reach, act))
+            |> List.map (fun reach -> (reach, act))
 
         let collectReaches = List.collect applyReaches
 
         match piece with
         | Piece (color, Pawn) ->
-            let (_, rank) = pos
+            let _, rank = pos
             let direction = match color with | White -> Up | Black -> Down
 
             let pawnRankType =
                 match (color, rank) with
-                | (White, R7) | (Black, R2) -> PromotionRank
-                | (White, R5) | (Black, R4) -> EnPassantRank
-                | (White, R2) | (Black, R7) -> DoubleMoveRank
+                | White, R7 | Black, R2 -> PromotionRank
+                | White, R5 | Black, R4 -> EnPassantRank
+                | White, R2 | Black, R7 -> DoubleMoveRank
                 | _ -> RegularRank
 
             match pawnRankType with
@@ -312,18 +312,18 @@ let sameColor (Piece (sourceColor, _)) square =
 let differentColor p s = not (sameColor p s)
 
 type CastleStatus = {
-    canCastleKingside: bool
-    canCastleQueenside: bool
+    canCastleKingSide: bool
+    canCastleQueenSide: bool
 }
 
-let canCastle = { canCastleKingside = true; canCastleQueenside = true }
+let canCastle = { canCastleKingSide = true; canCastleQueenSide = true }
 
 type RepetitionState = {
     turn: Color
     whitePlayerCastleState: CastleStatus
     blackPlayerCastleState: CastleStatus
     pawnCapturableEnPassant: Position option
-    pieces: Map<(File * Rank), Piece>
+    pieces: Map<File * Rank, Piece>
 }
 
 type GameState = {
@@ -331,7 +331,7 @@ type GameState = {
     whitePlayerCastleState: CastleStatus
     blackPlayerCastleState: CastleStatus
     pawnCapturableEnPassant: Position option
-    pieces: Map<(File * Rank), Piece>
+    pieces: Map<File * Rank, Piece>
     plies: PlyOutput list
     pliesWithoutPawnOrCapture: int
     repeatableStates: RepetitionState list
@@ -395,23 +395,23 @@ let canExecute game sourcePiece targetPos plyType =
     | CastleKingSideType ->
         match sourcePiece with
         | Piece (White, King) ->
-            game.whitePlayerCastleState.canCastleKingside &&
+            game.whitePlayerCastleState.canCastleKingSide &&
             game @@@ F1 |> Square.isEmpty &&
             game @@@ G1 |> Square.isEmpty
         | Piece (Black, King) ->
-            game.blackPlayerCastleState.canCastleKingside &&
+            game.blackPlayerCastleState.canCastleKingSide &&
             game @@@ F8 |> Square.isEmpty &&
             game @@@ G8 |> Square.isEmpty
         | _ -> false
     | CastleQueenSideType ->
         match sourcePiece with
         | Piece (White, King) ->
-            game.whitePlayerCastleState.canCastleQueenside &&
+            game.whitePlayerCastleState.canCastleQueenSide &&
             game @@@ B1 |> Square.isEmpty &&
             game @@@ C1 |> Square.isEmpty &&
             game @@@ D1 |> Square.isEmpty
         | Piece (Black, King) ->
-            game.blackPlayerCastleState.canCastleQueenside &&
+            game.blackPlayerCastleState.canCastleQueenSide &&
             game @@@ B8 |> Square.isEmpty &&
             game @@@ C8 |> Square.isEmpty &&
             game @@@ D8 |> Square.isEmpty
@@ -464,7 +464,7 @@ let private rawBoardChange pieces boardChange =
     | BoardChange.MovePiece (sourcePos, targetPos) ->
         match pieces @@ sourcePos with
         | EmptySquare _ ->
-            failwith (sprintf "Trying to move a piece at %A but there is no piece there." sourcePos)
+            failwith $"Trying to move a piece at %A{sourcePos} but there is no piece there."
         | PieceSquare (piece, _) ->
             pieces
             |> Map.remove sourcePos
@@ -492,7 +492,7 @@ let rawExecutePly (ply:Ply) (pieces:Map<Position, Piece>) =
 
 let nextGameState (ply:Ply) gameState =
     let otherPlayer = opponent gameState.turn
-    let plyPreventsWhiteCastleKingside =
+    let plyPreventsWhiteCastleKingSide =
         match ply with
         | Move    (Piece (White, King), _, _)
         | Move    (Piece (White, Rook), (H, R1), _)
@@ -500,7 +500,7 @@ let nextGameState (ply:Ply) gameState =
         | Capture (Piece (White, King), _, _)
         | Capture (_, _, (H, R1)) -> true
         | _ -> false
-    let plyPreventsBlackCastleKingside =
+    let plyPreventsBlackCastleKingSide =
         match ply with
         | Move    (Piece (Black, King), _, _)
         | Move    (Piece (Black, Rook), (H, R8), _)
@@ -508,7 +508,7 @@ let nextGameState (ply:Ply) gameState =
         | Capture (Piece (Black, King), _, _)
         | Capture (_, _, (H, R8)) -> true
         | _ -> false
-    let plyPreventsWhiteCastleQueenside =
+    let plyPreventsWhiteCastleQueenSide =
         match ply with
         | Move    (Piece (White, King), _, _)
         | Move    (Piece (White, Rook), (A, R1), _)
@@ -516,7 +516,7 @@ let nextGameState (ply:Ply) gameState =
         | Capture (Piece (White, King), _, _)
         | Capture (_, _, (A, R1)) -> true
         | _ -> false
-    let plyPreventsBlackCastleQueenside =
+    let plyPreventsBlackCastleQueenSide =
         match ply with
         | Move    (Piece (Black, King), _, _)
         | Move    (Piece (Black, Rook), (A, R8), _)
@@ -536,21 +536,21 @@ let nextGameState (ply:Ply) gameState =
             | _ -> None
         blackPlayerCastleState =
             {
-                canCastleKingside =
-                    gameState.blackPlayerCastleState.canCastleKingside &&
-                    not plyPreventsBlackCastleKingside
-                canCastleQueenside =
-                    gameState.blackPlayerCastleState.canCastleQueenside &&
-                    not plyPreventsBlackCastleQueenside
+                canCastleKingSide =
+                    gameState.blackPlayerCastleState.canCastleKingSide &&
+                    not plyPreventsBlackCastleKingSide
+                canCastleQueenSide =
+                    gameState.blackPlayerCastleState.canCastleQueenSide &&
+                    not plyPreventsBlackCastleQueenSide
             }
         whitePlayerCastleState =
             {
-                canCastleKingside =
-                    gameState.whitePlayerCastleState.canCastleKingside &&
-                    not plyPreventsWhiteCastleKingside
-                canCastleQueenside =
-                    gameState.whitePlayerCastleState.canCastleQueenside &&
-                    not plyPreventsWhiteCastleQueenside
+                canCastleKingSide =
+                    gameState.whitePlayerCastleState.canCastleKingSide &&
+                    not plyPreventsWhiteCastleKingSide
+                canCastleQueenSide =
+                    gameState.whitePlayerCastleState.canCastleQueenSide &&
+                    not plyPreventsWhiteCastleQueenSide
             }
         plies = gameState.plies
         pliesWithoutPawnOrCapture = if hasStructureChanged then 0 else gameState.pliesWithoutPawnOrCapture + 1
@@ -584,8 +584,8 @@ type DisplayInfo = {
     board: Square[,]
     playerToMove: Color option
     isCheck: bool
-    canCastleKingside: bool
-    canCastleQueenside: bool
+    canCastleKingSide: bool
+    canCastleQueenSide: bool
     moves: PlyOutput list
     gameState: GameState
 }
@@ -646,8 +646,8 @@ let getFinalDisplayInfo game =
         )
         playerToMove = None
         isCheck = isCheck game.turn game
-        canCastleKingside = game.currentPlayerCastleState.canCastleKingside
-        canCastleQueenside = game.currentPlayerCastleState.canCastleQueenside
+        canCastleKingSide = game.currentPlayerCastleState.canCastleKingSide
+        canCastleQueenSide = game.currentPlayerCastleState.canCastleQueenSide
         moves = List.rev game.plies
         gameState = game
     }
@@ -659,8 +659,8 @@ let getDisplayInfo game =
         )
         playerToMove = Some game.turn
         isCheck = isCheck game.turn game
-        canCastleKingside = game.currentPlayerCastleState.canCastleKingside
-        canCastleQueenside = game.currentPlayerCastleState.canCastleQueenside
+        canCastleKingSide = game.currentPlayerCastleState.canCastleKingSide
+        canCastleQueenSide = game.currentPlayerCastleState.canCastleQueenSide
         moves = List.rev game.plies
         gameState = game
     }
@@ -788,12 +788,12 @@ let initialGameState =
         turn = White
         pieces = initialPieces
         whitePlayerCastleState = {
-            canCastleKingside = true
-            canCastleQueenside = true
+            canCastleKingSide = true
+            canCastleQueenSide = true
         }
         blackPlayerCastleState = {
-            canCastleKingside = true
-            canCastleQueenside = true
+            canCastleKingSide = true
+            canCastleQueenSide = true
         }
         pawnCapturableEnPassant = None
         plies = []

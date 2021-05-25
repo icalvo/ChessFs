@@ -46,7 +46,7 @@ module ``transitions`` =
         test <@
                 [ "f3"; ":d"; ":d"; "e5"; ":d"; ":a" ]
                 |> algebraicChessStateMachine
-                |> Seq.map (fun x -> sprintf "%s {%s}" (outcomeToPGN x) (x.displayInfo.gameState.statusToFEN))
+                |> Seq.map (fun x -> $"%s{outcomeToPGN x} {{%s{x.displayInfo.gameState.statusToFEN}}}")
                 |> Seq.toList = [
                 " {w KQkq - 0 1}";
                 "1. f3 {b KQkq - 0 1}";

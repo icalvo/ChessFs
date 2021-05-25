@@ -10,7 +10,7 @@
 
     module Seq =
         let pipe action = Seq.map (fun x -> action x; x)
-        let debug name = pipe (fun x -> if Configuration.debug then printfn "%s yields %A" name x)
+        let debug name = pipe (fun x -> if Configuration.debug then printfn $"%s{name} yields %A{x}")
         let filterNones (s: seq<'a option>): seq<'a> = Seq.choose id s
         let takeWhileIncludingLast predicate (s:seq<_>) = 
             /// Iterates over the enumerator, yielding elements and

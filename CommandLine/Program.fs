@@ -26,7 +26,7 @@ let askActionResult input availableActions oldActionResult =
     match (findActionResult input availableActions) with
     | Some outcome -> outcome
     | None ->
-        printfn "...%s is not a valid move. Try again" (input.Force())
+        printfn $"...%s{input.Force()} is not a valid move. Try again"
         oldActionResult
 
 /// Ask the user for input. Process the string entered as 
@@ -58,14 +58,16 @@ let isFinish = function
 
 [<EntryPoint>]
 let main argv =
-    let game = newChessGame
+    printfn "Welcome to ChessFs! This console application shows a fully functional chess engine."
+    printfn "All you see in each ply is provided by the engine: the board state, the list of possible moves and the outcome of the former move."
 
+    let game = newChessGame
     printOutcome game
     let initialState = AskingAction game
 
     // let scholarsMate = "e4 e5 Bc4 Nc6 Qh5 Nf6 Qxf7".Split(' ')
     // let commandLineInput = scholarsMate;
-    let commandLineInput = argv |> Seq.map (fun x -> lazy(x));
+    let commandLineInput = argv |> Seq.map (fun x -> lazy x);
 
     let input = commandLineInput |> Seq.append consoleInput
 

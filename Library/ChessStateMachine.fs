@@ -24,7 +24,7 @@ let chessTransition2 former input equality =
                 |> List.tryFind (fun x -> equality x.action input)
             match executableAction with
             | Some x -> Success (x.execute())
-            | None -> Failure [ sprintf "Could not find action %A. Available: %A" input (availableActions |> List.map (fun x -> playerActionToAlgebraic x.action)) ]
+            | None -> Failure [ $"Could not find action %A{input}. Available: %A{availableActions |> List.map (fun x -> playerActionToAlgebraic x.action)}" ]
     | Failure _ -> former
         
 let chessTransition former input equality =
@@ -44,7 +44,7 @@ let chessTransition former input equality =
             |> List.tryFind (fun x -> equality x.action input)
         match executableAction with
         | Some x -> x.execute()
-        | None -> raise (System.Exception(sprintf "Could not find action %A. Available: %A" input (availableActions |> List.map (fun x -> playerActionToAlgebraic x.action))))
+        | None -> raise (System.Exception $"Could not find action %A{input}. Available: %A{availableActions |> List.map (fun x -> playerActionToAlgebraic x.action)}")
 
 let chessFinish = function
 | WonByCheckmate _ | LostByResignation _ | Draw _ -> true

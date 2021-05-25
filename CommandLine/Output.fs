@@ -40,7 +40,7 @@ let cellForeground =
     | EmptySquare _ -> ConsoleColor.Black
 
 let printSquare sq =
-    cprintf (cellForeground sq) (cellBackground (Square.position sq)) "%s" (squareToString sq)
+    cprintf (cellForeground sq) (cellBackground (Square.position sq)) $"%s{squareToString sq}"
 
 let printBoard (b: Square[,]) color =
     let colorFunc =
@@ -61,18 +61,18 @@ let printBoard (b: Square[,]) color =
         |> Array.iter fn
 
     let printSquareRow i =
-        printf "%i" (8-i)
+        printf $"%i{8-i}"
         iterRow printSquare i
-        printfn "%i" (8-i)
+        printfn $"%i{8-i}"
 
     let filesHeader =
         (colorFunc2 [|"A"; "B"; "C"; "D"; "E"; "F"; "G"; "H"|])
         |> Array.map (fun x -> x.PadLeft(2, ' '))
         |> String.concat ""
 
-    printfn "%s" filesHeader
+    printfn $"%s{filesHeader}"
     indexesToIterate |> Array.iter printSquareRow
-    printfn "%s" filesHeader
+    printfn $"%s{filesHeader}"
 
 let csl toString seq = seq |> Seq.map toString |> String.concat ", "
 
@@ -93,17 +93,17 @@ let printOutcome (outcome: PlayerActionOutcome) =
     if displayInfo.isCheck && Option.isSome displayInfo.playerToMove then
         printfn "CHECK!"
     displayInfo.playerToMove
-    |> Option.map (fun p -> printfn "%A to move" p) |> ignore
+    |> Option.map (fun p -> printfn $"%A{p} to move") |> ignore
     printfn "" 
     match outcome with
     | Draw (_, _, drawType) -> 
-        printfn "GAME OVER - Draw by %A" drawType
+        printfn $"GAME OVER - Draw by %A{drawType}"
         printfn ""
     | LostByResignation (_, player) -> 
-        printfn "GAME WON because %A resigned" (opponent player)
+        printfn $"GAME WON because %A{opponent player} resigned"
         printfn ""
     | WonByCheckmate (_, player) -> 
-        printfn "GAME WON by checkmating %A" player
+        printfn $"GAME WON by checkmating %A{player}"
         printfn ""
     | PlayerMoved (_, availableActions) ->
         printActions availableActions
@@ -111,9 +111,9 @@ let printOutcome (outcome: PlayerActionOutcome) =
         printfn "GAME STARTED"
         printActions availableActions
     | DrawOffer (_, player, availableActions) ->
-        printfn "DRAW OFFERED by %A" player
+        printfn $"DRAW OFFERED by %A{player}"
         printActions availableActions
     | DrawDeclinement (_, player, availableActions) ->
         printActions availableActions
-        printfn "DRAW DECLINED by %A" player
+        printfn $"DRAW DECLINED by %A{player}"
  

@@ -66,11 +66,11 @@ type Piece with
         | Piece (Black, shape) -> shape.toString.ToLowerInvariant()
 
 let positionToAlgebraic ((f, r):Position) =
-    sprintf "%s%s" f.toAlgebraic r.toString
+    $"%s{f.toAlgebraic}%s{r.toString}"
 
 let squareToString = function
     | EmptySquare _ -> "  "
-    | PieceSquare (Piece (color, shape), _) -> sprintf "%s%s" color.toString shape.toString
+    | PieceSquare (Piece (color, shape), _) -> $"%s{color.toString}%s{shape.toString}"
 
 let squareWithActions capList square =
     let capabilityAt pos = capList |> Seq.tryFind (fun (_, p) -> p = pos)
@@ -102,23 +102,23 @@ let plyOutputSuffix = function
 let plyToAlgebraic plyOutput =
     let suffix = plyOutputSuffix plyOutput
     let ply = plyOutput.ply
-    let (sourcePos, targetPos) = Ply.positions ply
+    let sourcePos, targetPos = Ply.positions ply
     let targetPosString = positionToAlgebraic targetPos
     let sourceFile = (fst sourcePos)
     match ply with
     | Move (Piece (_, Pawn), _, _) ->
-        sprintf "%s%s" targetPosString suffix
+        $"%s{targetPosString}%s{suffix}"
     | Move (Piece (_, shape), _, _) ->
-        sprintf "%s%s%s" shape.toString targetPosString suffix
+        $"%s{shape.toString}%s{targetPosString}%s{suffix}"
     | Capture (Piece (_, shape), _, _) ->
         match shape with
-        | Pawn -> sprintf "%sx%s%s" sourceFile.toAlgebraic targetPosString suffix
-        | _ -> sprintf "%sx%s" shape.toString targetPosString
-    | CaptureEnPassant _ -> sprintf "%sx%s%s" sourceFile.toAlgebraic targetPosString suffix
-    | CastleKingSide _ -> sprintf "O-O%s" suffix
-    | CastleQueenSide _ -> sprintf "O-O-O%s" suffix
-    | Promote (_, _, _, tshape) -> sprintf "%s=%s%s" targetPosString tshape.toString suffix
-    | CaptureAndPromote (_, _, _, tshape) -> sprintf "%sx%s=%s%s" sourceFile.toAlgebraic targetPosString tshape.toString suffix
+        | Pawn -> $"%s{sourceFile.toAlgebraic}x%s{targetPosString}%s{suffix}"
+        | _ -> $"%s{shape.toString}x%s{targetPosString}"
+    | CaptureEnPassant _ -> $"%s{sourceFile.toAlgebraic}x%s{targetPosString}%s{suffix}"
+    | CastleKingSide _ -> $"O-O%s{suffix}"
+    | CastleQueenSide _ -> $"O-O-O%s{suffix}"
+    | Promote (_, _, _, targetShape) -> $"%s{targetPosString}=%s{targetShape.toString}%s{suffix}"
+    | CaptureAndPromote (_, _, _, targetShape) -> $"%s{sourceFile.toAlgebraic}x%s{targetPosString}=%s{targetShape.toString}%s{suffix}"
 
 let playerActionToAlgebraic = function
     | MovePiece ply -> plyToAlgebraic (RegularPly ply)
@@ -141,15 +141,15 @@ let movesToPGN =
     >> Seq.indexed
     >> Seq.map (fun (idx, plies) ->
         match plies with
-        |[whitePly] -> sprintf "%i. %s" (idx+1) (plyToAlgebraic whitePly)
-        |[whitePly; blackPly] -> sprintf "%i. %s %s" (idx+1) (plyToAlgebraic whitePly) (plyToAlgebraic blackPly)
+        |[whitePly] -> $"%i{idx+1}. %s{plyToAlgebraic whitePly}"
+        |[whitePly; blackPly] -> $"%i{idx+1}. %s{plyToAlgebraic whitePly} %s{plyToAlgebraic blackPly}"
         |_ -> "")
     >> String.concat " "
 
 let outcomeToResult outcome =
     match outcome with
     | Draw (_, _, drawType) ->
-        sprintf "1/2-1/2 {%A}" drawType
+        $"1/2-1/2 {{%A{drawType}}}"
     | DrawOffer _ ->
         "{Draw offered}"
     | DrawDeclinement _ ->
@@ -174,18 +174,19 @@ let outcomeToSimpleResult outcome =
     | _ ->
         ""
 
-let movesOutput outcome =
+let replaceLastCheckByCheckmate (pgn: string) = $"%s{pgn.TrimEnd('+')}#"
+
+let movesOutput (outcome: PlayerActionOutcome) =
+    let pgn = movesToPGN outcome.displayInfo.moves
     match outcome with
-    | WonByCheckmate (displayInfo, _) ->
-        sprintf "%s#" ((movesToPGN displayInfo.moves).TrimEnd('+'))
-    | _ ->
-        movesToPGN outcome.displayInfo.moves
+    | WonByCheckmate _ -> replaceLastCheckByCheckmate pgn
+    | _ -> pgn
     
 let outcomeToPGN outcome =
-    sprintf "%s# %s" (movesOutput outcome) (outcomeToResult outcome)
+    $"%s{movesOutput outcome}# %s{outcomeToResult outcome}"
 
 let outcomeToSimplePGN outcome =
-    sprintf "%s# %s" (movesOutput outcome) (outcomeToSimpleResult outcome)
+    $"%s{movesOutput outcome}# %s{outcomeToSimpleResult outcome}"
 
 let boardToFEN (b: Square[,]) =
     let rowFolder (list, empties) square =
@@ -229,10 +230,10 @@ type GameState with
         | Black -> "b"
 
         let castleStatusToFEN (white:CastleStatus) (black:CastleStatus) =
-            (if white.canCastleKingside then "K" else "") +
-            (if white.canCastleQueenside then "Q" else "") +
-            (if black.canCastleKingside then "k" else "") +
-            (if black.canCastleKingside then "q" else "")
+            (if white.canCastleKingSide then "K" else "") +
+            (if white.canCastleQueenSide then "Q" else "") +
+            (if black.canCastleKingSide then "k" else "") +
+            (if black.canCastleKingSide then "q" else "")
 
         let enPassantTarget = function
         | Some pos -> positionToAlgebraic pos

@@ -133,46 +133,46 @@ let H8 = (H, R8)
 
 module Rank =
     let next: Position -> Position option = function
-        | (f, R1) -> Some (f, R2)
-        | (f, R2) -> Some (f, R3)
-        | (f, R3) -> Some (f, R4)
-        | (f, R4) -> Some (f, R5)
-        | (f, R5) -> Some (f, R6)
-        | (f, R6) -> Some (f, R7)
-        | (f, R7) -> Some (f, R8)
-        | (_, R8) -> None
+        | f, R1 -> Some (f, R2)
+        | f, R2 -> Some (f, R3)
+        | f, R3 -> Some (f, R4)
+        | f, R4 -> Some (f, R5)
+        | f, R5 -> Some (f, R6)
+        | f, R6 -> Some (f, R7)
+        | f, R7 -> Some (f, R8)
+        | _, R8 -> None
 
 
 
     let prev: Position -> Position option = function
-        | (_, R1) -> None
-        | (f, R2) -> Some (f, R1)
-        | (f, R3) -> Some (f, R2)
-        | (f, R4) -> Some (f, R3)
-        | (f, R5) -> Some (f, R4)
-        | (f, R6) -> Some (f, R5)
-        | (f, R7) -> Some (f, R6)
-        | (f, R8) -> Some (f, R7)
+        | _, R1 -> None
+        | f, R2 -> Some (f, R1)
+        | f, R3 -> Some (f, R2)
+        | f, R4 -> Some (f, R3)
+        | f, R5 -> Some (f, R4)
+        | f, R6 -> Some (f, R5)
+        | f, R7 -> Some (f, R6)
+        | f, R8 -> Some (f, R7)
 
 module File =
     let next: Position -> Position option = function
-        | (A, r) -> Some (B, r)
-        | (B, r) -> Some (C, r)
-        | (C, r) -> Some (D, r)
-        | (D, r) -> Some (E, r)
-        | (E, r) -> Some (F, r)
-        | (F, r) -> Some (G, r)
-        | (G, r) -> Some (H, r)
-        | (H, _) -> None
+        | A, r -> Some (B, r)
+        | B, r -> Some (C, r)
+        | C, r -> Some (D, r)
+        | D, r -> Some (E, r)
+        | E, r -> Some (F, r)
+        | F, r -> Some (G, r)
+        | G, r -> Some (H, r)
+        | H, _ -> None
 
     let prev: Position -> Position option = function
-        | (A, _) -> None
-        | (B, r) -> Some (A, r)
-        | (C, r) -> Some (B, r)
-        | (D, r) -> Some (C, r)
-        | (E, r) -> Some (D, r)
-        | (F, r) -> Some (E, r)
-        | (G, r) -> Some (F, r)
-        | (H, r) -> Some (G, r)
+        | A, _ -> None
+        | B, r -> Some (A, r)
+        | C, r -> Some (B, r)
+        | D, r -> Some (C, r)
+        | E, r -> Some (D, r)
+        | F, r -> Some (E, r)
+        | G, r -> Some (F, r)
+        | H, r -> Some (G, r)
 
 type Color = Black | White
