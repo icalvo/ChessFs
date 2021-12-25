@@ -183,10 +183,12 @@ let movesOutput (outcome: PlayerActionOutcome) =
     | _ -> pgn
     
 let outcomeToPGN outcome =
-    $"%s{movesOutput outcome}# %s{outcomeToResult outcome}"
+    let outcomeRepr = outcomeToResult outcome
+    let outcomeReprSeparator = if outcomeRepr = "" then "" else " "
+    $"%s{movesOutput outcome}%s{outcomeReprSeparator}%s{outcomeRepr}"
 
 let outcomeToSimplePGN outcome =
-    $"%s{movesOutput outcome}# %s{outcomeToSimpleResult outcome}"
+    $"%s{movesOutput outcome} %s{outcomeToSimpleResult outcome}"
 
 let boardToFEN (b: Square[,]) =
     let rowFolder (list, empties) square =
