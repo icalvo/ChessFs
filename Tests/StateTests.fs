@@ -7,21 +7,20 @@ module ``transitions`` =
     open Notation
     open ChessStateMachine
 
-    let findExecutableAction (input:string) availableActions =
-         availableActions
-         |> List.filter (fun { action = m } -> (playerActionToAlgebraic m).ToLowerInvariant() = input.ToLowerInvariant())
-         |> List.tryHead
+    //let findExecutableAction (input:string) availableActions =
+    //     availableActions
+    //     |> List.filter (fun { action = m } -> (playerActionToAlgebraic m).ToLowerInvariant() = input.ToLowerInvariant())
+    //     |> List.tryHead
 
     let equality m (input:string) = (playerActionToAlgebraic m).ToLowerInvariant() = input.ToLowerInvariant()
 
     [<Fact>]
     let ``Stalemate``() =
-        test <@
+        
                 ["e3"; "a5";"Qh5";"Ra6";"Qxa5";"h5";"h4";"Rah6";"Qxc7";"f6";"Qxd7";"Kf7";"Qxb7";"Qd3"; "Qxb8";"Qh7"; "Qxc8"; "Kg6"; "Qe6"]
                 |> algebraicChessStateMachine
                 |> Seq.last
-                |> outcomeToPGN = "1. e3 a5 2. Qh5 Ra6 3. Qxa5 h5 4. h4 Rah6 5. Qxc7 f6 6. Qxd7+ Kf7 7. Qxb7 Qd3 8. Qxb8 Qh7 9. Qxc8 Kg6 10. Qe6 1/2-1/2 {Stalemate}"
-        @>
+                |> outcomeToPGN =! "1. e3 a5 2. Qh5 Ra6 3. Qxa5 h5 4. h4 Rah6 5. Qxc7 f6 6. Qxd7+ Kf7 7. Qxb7 Qd3 8. Qxb8 Qh7 9. Qxc8 Kg6 10. Qe6 1/2-1/2 {Stalemate}"
 
     [<Fact>]
     let ``Fool's mate``() =
@@ -43,19 +42,18 @@ module ``transitions`` =
 
     [<Fact>]
     let ``Draw declined and accepted``() =
-        test <@
+        
                 [ "f3"; ":d"; ":d"; "e5"; ":d"; ":a" ]
                 |> algebraicChessStateMachine
                 |> Seq.map (fun x -> $"%s{outcomeToPGN x} {{%s{x.displayInfo.gameState.statusToFEN}}}")
-                |> Seq.toList = [
+                |> Seq.toList =! [
                 " {w KQkq - 0 1}";
                 "1. f3 {b KQkq - 0 1}";
                 "1. f3 {Draw offered} {w KQkq - 0 1}";
                 "1. f3 {Draw declined} {b KQkq - 0 1}";
                 "1. f3 e5 {w KQkq e6 0 2}";
                 "1. f3 e5 {Draw offered} {b KQkq e6 0 2}";
-                "1. f3 e5 1/2-1/2 {Agreement} {b KQkq e6 0 2}"] 
-        @>
+                "1. f3 e5 1/2-1/2 {Agreement} {b KQkq e6 0 2}"]
 
     [<Fact>]
     let ``After three-fold repetition, a draw offer is automatically accepted``() =
@@ -81,12 +79,10 @@ module ``transitions`` =
 
     [<Fact>]
     let ``Scholar's mate``() =
-        test <@
-                [ "e4"; "e5"; "Bc4"; "Nc6"; "Qh5"; "Nf6"; "Qxf7" ]
-                |> algebraicChessStateMachine
-                |> Seq.last
-                |> outcomeToPGN = "1. e4 e5 2. Bc4 Nc6 3. Qh5 Nf6 4. Qxf7# 1-0"
-        @>
+        [ "e4"; "e5"; "Bc4"; "Nc6"; "Qh5"; "Nf6"; "Qxf7" ]
+        |> algebraicChessStateMachine
+        |> Seq.last
+        |> outcomeToPGN =! "1. e4 e5 2. Bc4 Nc6 3. Qh5 Nf6 4. Qxf7# 1-0"
 
     [<Fact>]
     let ``After a five-fold repetition, it's a draw``() =

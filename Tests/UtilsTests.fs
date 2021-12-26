@@ -8,8 +8,8 @@ module ``Option`` =
 
     [<Fact>]
     let ``defaultTo``() =
-        test <@ None |> Option.defaultTo 34 = 34 @>
-        test <@ Some 127 |> Option.defaultTo 34 = 127 @>
+        None |> Option.defaultTo 34 =! 34
+        Some 127 |> Option.defaultTo 34 =! 127
 
     [<Fact>]
     let ``mapList``() =
@@ -17,9 +17,9 @@ module ``Option`` =
         | 2 -> [ "a"; "b" ]
         | _ -> [ "other" ]
 
-        test <@ None |> Option.mapList listfn = [] @>
-        test <@ Some 2 |> Option.mapList listfn = [ "a"; "b" ] @>
-        test <@ Some 5 |> Option.mapList listfn = [ "other" ] @>
+        None |> Option.mapList listfn =! []
+        Some 2 |> Option.mapList listfn =! [ "a"; "b" ]
+        Some 5 |> Option.mapList listfn =! [ "other" ]
 
 module ``Seq`` =
     open Xunit
@@ -28,13 +28,13 @@ module ``Seq`` =
 
     [<Fact>]
     let ``filterNones``() =
-        test <@ Seq.filterNones [Some "a"; None; Some "b"] |> Seq.toList = [ "a"; "b" ] @>
-        test <@ Seq.filterNones [None; None ] |> Seq.toList = [] @>
-        test <@ Seq.filterNones [] |> Seq.toList = [] @>
+        Seq.filterNones [Some "a"; None; Some "b"] |> Seq.toList =! [ "a"; "b" ]
+        Seq.filterNones [None; None ] |> Seq.toList =! []
+        Seq.filterNones [] |> Seq.toList =! []
 
     [<Fact>]
-    let ``takeWhilePlusOne``() =
-        test <@ [1; 3; 5; 6; 8; 9] |> Seq.takeWhileIncludingLast (fun x -> x <= 5) |> Seq.toList = [ 1; 3; 5; 6 ] @>
+    let ``takeWhileIncludingLast``() =
+        [1; 3; 5; 6; 8; 9] |> Seq.takeWhileIncludingLast (fun x -> x <= 5) |> Seq.toList =! [ 1; 3; 5; 6 ]
 
     [<Fact>]
     let ``unfoldSimple``() =
@@ -42,11 +42,13 @@ module ``Seq`` =
         | 3 -> Some 16
         | 16 -> Some 19
         | _ -> None
-        test <@ 3 |> Seq.unfoldSimple listfn |> Seq.toList = [ 16; 19 ] @>
+        3 |> Seq.unfoldSimple listfn |> Seq.toList =! [ 16; 19 ]
 
     [<Fact>]
     let ``batch``() =
-        test <@ [1; 3; 5; 6; 8; 9; 12 ] |> Seq.batch 3 = [ [ 1; 3; 5 ] ; [6; 8; 9] ; [ 12 ] ] @>
+        [] |> Seq.batch 3 =! [[]]
+        [1; 3; 5; 6; 8; 9 ] |> Seq.batch 2 =! [ [ 1; 3 ]; [5 ; 6 ]; [ 8; 9 ] ]
+        [1; 3; 5; 6; 8; 9; 12 ] |> Seq.batch 3 =! [ [ 1; 3; 5 ] ; [6; 8; 9] ; [ 12 ] ]
 
 module ``List`` =
     open Xunit
@@ -55,9 +57,9 @@ module ``List`` =
 
     [<Fact>]
     let ``filterNones``() =
-        test <@ List.filterNones [Some "a"; None; Some "b"] = [ "a"; "b" ] @>
-        test <@ List.filterNones [None; None ] = [] @>
-        test <@ List.filterNones [] = [] @>
+        List.filterNones [Some "a"; None; Some "b"] =! [ "a"; "b" ]
+        List.filterNones [None; None ] =! []
+        List.filterNones [] =! []
 
     [<Fact>]
     let ``apply``() =
@@ -67,7 +69,7 @@ module ``List`` =
             fun x -> x - 1
         ]
 
-        test <@ funList |> List.apply 2 = [ 4; 7; 1 ] @>
+        funList |> List.apply 2 =! [ 4; 7; 1 ]
 
 module ``Result`` =
     open Xunit
@@ -76,8 +78,8 @@ module ``Result`` =
 
     [<Fact>]
     let ``map``() =
-        test <@ Success 456 |> Result.map (fun x -> x + 2) = Success 458 @>
-        test <@ Failure ["error1"; "error2"] |> Result.map (fun x -> x + 2) = Failure ["error1"; "error2"] @>
+        Success 456 |> Result.map (fun x -> x + 2) =! Success 458
+        Failure ["error1"; "error2"] |> Result.map (fun x -> x + 2) =! Failure ["error1"; "error2"]
 
     [<Fact>]
     let ``retn``() =
@@ -86,10 +88,10 @@ module ``Result`` =
     [<Fact>]
     let ``apply``() =
         let fn = fun x -> x + 2
-        test <@ Success 455 |> Result.apply (Success fn) = Success 457 @>
-        test <@ Success 455 |> Result.apply (Failure ["errorfn"]) = Failure ["errorfn"] @>
-        test <@ Failure ["errorres"] |> Result.apply (Success fn) = Failure ["errorres"] @>
-        test <@ Failure ["errorres"] |> Result.apply (Failure ["errorfn"]) = Failure ["errorfn"; "errorres"] @>
+        Success 455 |> Result.apply (Success fn) =! Success 457
+        Success 455 |> Result.apply (Failure ["errorfn"]) =! Failure ["errorfn"]
+        Failure ["errorres"] |> Result.apply (Success fn) =! Failure ["errorres"]
+        Failure ["errorres"] |> Result.apply (Failure ["errorfn"]) =! Failure ["errorfn"; "errorres"]
 
     [<Fact>]
     let ``bind``() =
@@ -97,9 +99,9 @@ module ``Result`` =
         | 455 -> Success 457
         | _ -> Failure [ "not 455" ]
 
-        test <@ Success 455 |> Result.bind fn = Success 457 @>
-        test <@ Success 566 |> Result.bind fn =  Failure [ "not 455" ] @>
-        test <@ Failure [ "erro1"; "error2" ] |> Result.bind fn =  Failure [ "erro1"; "error2" ] @>
+        Success 455 |> Result.bind fn =! Success 457
+        Success 566 |> Result.bind fn =!  Failure [ "not 455" ]
+        Failure [ "erro1"; "error2" ] |> Result.bind fn =! Failure [ "erro1"; "error2" ]
 
 module ``Operators`` =
     open Xunit
@@ -119,9 +121,10 @@ module ``Operators`` =
         | _ -> None
 
         let fn = fn1 >?> fn2
-        test <@ fn 13 = None @>
-        test <@ fn 321 = Some 508 @>
-        test <@ fn 455 = None @>
+
+        fn 13 =! None
+        fn 321 =! Some 508
+        fn 455 =! None
 
 
     [<Fact>]
@@ -133,7 +136,7 @@ module ``Operators`` =
         | _ -> None
 
         let fn = fn1 * 2
-        test <@ fn 13 = None @>
-        test <@ fn 321 = Some 508 @>
-        test <@ fn 455 = None @>
+        fn 13 =! None
+        fn 321 =! Some 508
+        fn 455 =! None
 

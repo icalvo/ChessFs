@@ -1,7 +1,7 @@
 ﻿namespace ChessFs.Tests
 
 
-module ``be ascending tests`` =
+module ``Chess Tests`` =
     open Xunit
     open Swensen.Unquote
     open CoreTypes
@@ -15,7 +15,7 @@ module ``be ascending tests`` =
 
     [<Fact>]
     let ``Directions tests``() =
-        test <@ [A2;C8;H3] |> List.map Reach.UpRight  = [Some B3; None; None] @>
+        [A2;C8;H3] |> List.map Reach.UpRight  =! [Some B3; None; None]
 
     [<Fact>]
     let ``Reach generator``() =
@@ -77,13 +77,13 @@ module ``be ascending tests`` =
         test <@
 
                 makePlayerMoveResultWithCapabilities {
-                    turn = White
+                    playerInTurn = White
                     pieces =
                         Map.ofList [
                             placedPiece White Pawn C7
                         ]
-                    whitePlayerCastleState = canCastle
-                    blackPlayerCastleState = canCastle
+                    whitePlayerCastlingRights = canCastle
+                    blackPlayerCastlingRights = canCastle
                     pawnCapturableEnPassant = None
                     plies = []
                     pliesWithoutPawnOrCapture = 0
@@ -97,14 +97,14 @@ module ``be ascending tests`` =
     let ``Capture-promoting available actions``() =
         test <@
                 makePlayerMoveResultWithCapabilities {
-                    turn = White
+                    playerInTurn = White
                     pieces =
                         Map.ofList [
                             placedPiece White Pawn   C7
                             placedPiece Black Rook   B8
                         ]
-                    whitePlayerCastleState = canCastle
-                    blackPlayerCastleState = canCastle
+                    whitePlayerCastlingRights = canCastle
+                    blackPlayerCastlingRights = canCastle
                     pawnCapturableEnPassant = None
                     plies = []
                     pliesWithoutPawnOrCapture = 0
@@ -118,7 +118,7 @@ module ``be ascending tests`` =
     let ``Castling not possible when intermediate squares are in check``() =
         test <@
                 makePlayerMoveResultWithCapabilities {
-                    turn = White
+                    playerInTurn = White
                     pieces =
                         Map.ofList [
                             placedPiece White King   E1
@@ -126,8 +126,8 @@ module ``be ascending tests`` =
                             placedPiece White Rook   H1
                             placedPiece Black Rook   G8
                         ]
-                    whitePlayerCastleState = canCastle
-                    blackPlayerCastleState = canCastle
+                    whitePlayerCastlingRights = canCastle
+                    blackPlayerCastlingRights = canCastle
                     pawnCapturableEnPassant = None
                     plies = []
                     pliesWithoutPawnOrCapture = 0
@@ -143,7 +143,7 @@ module ``be ascending tests`` =
     let ``Castling possible when rook attacked``() =
         test <@
                 makePlayerMoveResultWithCapabilities {
-                    turn = White
+                    playerInTurn = White
                     pieces =
                         Map.ofList [
                             placedPiece White King   E1
@@ -151,8 +151,8 @@ module ``be ascending tests`` =
                             placedPiece White Rook   A1
                             placedPiece Black Rook   H8
                         ]
-                    whitePlayerCastleState = canCastle
-                    blackPlayerCastleState = canCastle
+                    whitePlayerCastlingRights = canCastle
+                    blackPlayerCastlingRights = canCastle
                     pawnCapturableEnPassant = None
                     plies = []
                     pliesWithoutPawnOrCapture = 0
@@ -168,15 +168,15 @@ module ``be ascending tests`` =
     let ``King cannot move to check``() =
         test <@
                 makePlayerMoveResultWithCapabilities {
-                    turn = White
+                    playerInTurn = White
                     pieces =
                         Map.ofList [
                             placedPiece White King   E1
                             placedPiece Black Rook   F8
                             placedPiece Black King   H8
                         ]
-                    whitePlayerCastleState = { canCastleKingSide = false; canCastleQueenSide = false }
-                    blackPlayerCastleState = { canCastleKingSide = false; canCastleQueenSide = false }
+                    whitePlayerCastlingRights = { canCastleKingSide = false; canCastleQueenSide = false }
+                    blackPlayerCastlingRights = { canCastleKingSide = false; canCastleQueenSide = false }
                     pawnCapturableEnPassant = None
                     plies = []
                     pliesWithoutPawnOrCapture = 0

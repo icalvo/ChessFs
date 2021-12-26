@@ -15,12 +15,12 @@ let cprintf fc bc fmt =
             let oldfc = Console.ForegroundColor
             let oldbc = Console.BackgroundColor
             try
-              Console.ForegroundColor <- fc;
-              Console.BackgroundColor <- bc;
-              Console.Write s
+                Console.ForegroundColor <- fc;
+                Console.BackgroundColor <- bc;
+                Console.Write s
             finally
-              Console.ForegroundColor <- oldfc;
-              Console.BackgroundColor <- oldbc)
+                Console.ForegroundColor <- oldfc;
+                Console.BackgroundColor <- oldbc)
         fmt
 
 let cprintfn fc bc fmt =

@@ -97,7 +97,6 @@ let squareWithActions capList square =
 let plyOutputSuffix = function
     | RegularPly _ -> ""
     | CheckPly _ -> "+"
-    | CheckmatePly _ -> "#"
 
 let plyToAlgebraic plyOutput =
     let suffix = plyOutputSuffix plyOutput
@@ -231,7 +230,7 @@ type GameState with
         | White -> "w"
         | Black -> "b"
 
-        let castleStatusToFEN (white:CastleStatus) (black:CastleStatus) =
+        let castleStatusToFEN (white:CastlingRights) (black:CastlingRights) =
             (if white.canCastleKingSide then "K" else "") +
             (if white.canCastleQueenSide then "Q" else "") +
             (if black.canCastleKingSide then "k" else "") +
@@ -242,8 +241,8 @@ type GameState with
         | None -> "-"
 
         [
-            colorToFEN this.turn
-            castleStatusToFEN this.whitePlayerCastleState this.blackPlayerCastleState
+            colorToFEN this.playerInTurn
+            castleStatusToFEN this.whitePlayerCastlingRights this.blackPlayerCastlingRights
             enPassantTarget this.pawnCapturableEnPassant
             this.pliesWithoutPawnOrCapture.ToString()
             this.numberOfMoves.ToString()
