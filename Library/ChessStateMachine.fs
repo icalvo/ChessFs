@@ -1,70 +1,27 @@
 ﻿module ChessStateMachine
 
-open StateMachine
+open StateActions
 open Chess
 open Notation
-open Utils
 
-let chessTransition2 former input equality =
-    match former with
-    | Success former2 ->
-        match former2 with
-        | Draw _ -> 
-            former
-        | LostByResignation _ -> 
-            former
-        | WonByCheckmate _ -> 
-            former
-        | GameStarted (_, availableActions)
-        | PlayerMoved (_, availableActions)
-        | DrawOffer (_, _, availableActions)
-        | DrawDeclinement (_, _, availableActions) ->
-            let executableAction = 
-                availableActions
-                |> List.tryFind (fun x -> equality x.action input)
-            match executableAction with
-            | Some x -> Success (x.execute())
-            | None -> Failure [ $"Could not find action %A{input}. Available: %A{availableActions |> List.map (fun x -> playerActionToAlgebraic x.action)}" ]
-    | Failure _ -> former
-        
-let chessTransition former input equality =
-    match former with
-    | Draw _ -> 
-        former
-    | LostByResignation _ -> 
-        former
-    | WonByCheckmate _ -> 
-        former
-    | GameStarted (_, availableActions)
-    | PlayerMoved (_, availableActions)
-    | DrawOffer (_, _, availableActions)
-    | DrawDeclinement (_, _, availableActions) ->
-        let executableAction = 
-            availableActions
-            |> List.tryFind (fun x -> equality x.action input)
-        match executableAction with
-        | Some x -> x.execute()
-        | None -> raise (System.Exception $"Could not find action %A{input}. Available: %A{availableActions |> List.map (fun x -> playerActionToAlgebraic x.action)}")
+let chessStateMachineFrom initialState translateAction normalizeInput input =
+    let actions (x: PlayerActionOutcome) = x.actions
+    let execute (x: ExecutableAction) = x.execute
+    stateActionsFailingStateMachine initialState actions translateAction normalizeInput execute input
 
-let chessFinish = function
-| WonByCheckmate _ | LostByResignation _ | Draw _ -> true
-| _ -> false
+let chessStateMachine translateAction = chessStateMachineFrom newChessGame translateAction
 
-let chessFinish2 = function
-| Success x ->
-    match x with
-    | WonByCheckmate _ | LostByResignation _ | Draw _ -> true
-    | _ -> false
-| Failure _ -> true
+let toLowerInvariant (s: string) = s.ToLowerInvariant()
 
-let chessStateMachineFrom initial input equality =
-    let trans x y = chessTransition x y equality
-    stateMachine trans chessFinish initial input
+let algebraicChessStateMachine translateInput input = chessStateMachine (executableActionToAlgebraic >> toLowerInvariant) (translateInput >> toLowerInvariant) input
 
-let chessStateMachine input equality =
-    let trans x y = chessTransition x y equality
-    stateMachine trans chessFinish newChessGame input
+let algebraicStringChessStateMachine input = algebraicChessStateMachine id input
 
-let algebraicNotationEquality m (input:string) = (playerActionToAlgebraic m).ToLowerInvariant() = input.ToLowerInvariant()
 
-let algebraicChessStateMachine input = chessStateMachine input algebraicNotationEquality
+let chessIgnoringStateMachineFrom initialState translateAction normalizeInput input =
+    let execute (x: ExecutableAction) = x.execute
+    stateActionsIgnoringStateMachine initialState actions translateAction normalizeInput execute input
+
+let chessIgnoringStateMachine translateAction = chessStateMachineFrom newChessGame translateAction
+
+let algebraicChessIgnoringStateMachine translateInput input = chessStateMachine (executableActionToAlgebraic >> toLowerInvariant) (translateInput >> toLowerInvariant) input

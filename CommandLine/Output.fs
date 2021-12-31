@@ -40,7 +40,7 @@ let cellForeground =
     | EmptySquare _ -> ConsoleColor.Black
 
 let printSquare sq =
-    cprintf (cellForeground sq) (cellBackground (Square.position sq)) $"%s{squareToString sq}"
+    cprintf (cellForeground sq) (cellBackground (Square.piecePosition sq)) $"%s{squareToString sq}"
 
 let printBoard (b: Square[,]) color =
     let colorFunc =
@@ -76,11 +76,12 @@ let printBoard (b: Square[,]) color =
 
 let csl toString seq = seq |> Seq.map toString |> String.concat ", "
 
-let actionsOutput seq = 
-    csl (fun moveInfo -> playerActionToAlgebraic moveInfo.action) seq
+let actionsOutput =
+    Seq.map executableActionToAlgebraic 
+    >> String.concat ", "
 
 let printActions = 
-    csl (fun moveInfo -> playerActionToAlgebraic moveInfo.action)
+    actionsOutput
     >> printfn "%s"
 
 let printMoves =
@@ -88,13 +89,12 @@ let printMoves =
  
 let printOutcome (outcome: PlayerActionOutcome) =
     let displayInfo = outcome.displayInfo
-    printBoard displayInfo.board (Option.defaultValue White displayInfo.playerToMove)
+    printBoard displayInfo.board displayInfo.playerInTurn
     outcome |> outcomeToSimplePGN |> printfn "%s"
-    if displayInfo.isCheck && Option.isSome displayInfo.playerToMove then
+    if displayInfo.isCheck then
         printfn "CHECK!"
-    displayInfo.playerToMove
-    |> Option.map (fun p -> printfn $"%A{p} to move") |> ignore
-    printfn "" 
+    printfn $"%A{displayInfo.playerInTurn} to move"
+    printfn ""
     match outcome with
     | Draw (_, _, drawType) -> 
         printfn $"GAME OVER - Draw by %A{drawType}"

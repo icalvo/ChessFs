@@ -1,4 +1,4 @@
-﻿namespace ChessFs.Tests
+﻿namespace ChessFs.Tests.Utils
 
 
 module ``Option`` =
@@ -79,7 +79,7 @@ module ``Result`` =
     [<Fact>]
     let ``map``() =
         Success 456 |> Result.map (fun x -> x + 2) =! Success 458
-        Failure ["error1"; "error2"] |> Result.map (fun x -> x + 2) =! Failure ["error1"; "error2"]
+        Failure (413, ["error1"; "error2"]) |> Result.map (fun x -> x + 2) =! Failure (415, ["error1"; "error2"])
 
     [<Fact>]
     let ``retn``() =
@@ -89,19 +89,20 @@ module ``Result`` =
     let ``apply``() =
         let fn = fun x -> x + 2
         Success 455 |> Result.apply (Success fn) =! Success 457
-        Success 455 |> Result.apply (Failure ["errorfn"]) =! Failure ["errorfn"]
-        Failure ["errorres"] |> Result.apply (Success fn) =! Failure ["errorres"]
-        Failure ["errorres"] |> Result.apply (Failure ["errorfn"]) =! Failure ["errorfn"; "errorres"]
+        Success 455 |> Result.apply (Failure (fn, ["errorfn"])) =! Failure (457, ["errorfn"])
+        Failure (413, ["errorres"]) |> Result.apply (Success fn) =! Failure (415, ["errorres"])
+        Failure (413, ["errorres"]) |> Result.apply (Failure (fn, ["errorfn"])) =! Failure (415, ["errorfn"; "errorres"])
 
     [<Fact>]
     let ``bind``() =
-        let fn = function
-        | 455 -> Success 457
-        | _ -> Failure [ "not 455" ]
+        let fn n =
+            match n with
+            | 455 -> Success "nice455"
+            | _ -> Failure ($"bad%i{n}", [ "not 455" ])
 
-        Success 455 |> Result.bind fn =! Success 457
-        Success 566 |> Result.bind fn =!  Failure [ "not 455" ]
-        Failure [ "erro1"; "error2" ] |> Result.bind fn =! Failure [ "erro1"; "error2" ]
+        Success 455 |> Result.bind fn =! Success "nice455"
+        Success 566 |> Result.bind fn =!  Failure ("bad566", [ "not 455" ])
+        Failure (314, [ "erro1"; "error2" ]) |> Result.bind fn =! Failure ("bad314", [ "erro1"; "error2"; "not 455" ])
 
 module ``Operators`` =
     open Xunit

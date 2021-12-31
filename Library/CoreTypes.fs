@@ -66,6 +66,12 @@ with
 
 type Position = File * Rank
 
+let file ((f, _):Position) =
+    f
+
+let rank ((_, r):Position) =
+    r
+
 let A1 = (A, R1)
 let A2 = (A, R2)
 let A3 = (A, R3)
@@ -176,3 +182,5 @@ module File =
         | H, r -> Some (G, r)
 
 type Color = Black | White
+
+type Player = Color

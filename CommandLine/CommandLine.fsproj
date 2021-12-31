@@ -13,6 +13,7 @@
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="GameConsole.fs" />
     <Compile Include="Output.fs" />
+    <Compile Include="ChessGameConsole.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 

@@ -65,8 +65,28 @@ type Piece with
         | Piece (White, shape) -> shape.toString
         | Piece (Black, shape) -> shape.toString.ToLowerInvariant()
 
+let fileToAlgebraic ((f, _):Position) =
+    $"%s{f.toAlgebraic}"
+
+let rankToAlgebraic ((_, r):Position) =
+    $"%s{r.toString}"
+
 let positionToAlgebraic ((f, r):Position) =
     $"%s{f.toAlgebraic}%s{r.toString}"
+
+let pieceToString = function
+    | Piece (White, King) -> "♔"
+    | Piece (White, Queen) -> "♕"
+    | Piece (White, Rook) -> "♖"
+    | Piece (White, Bishop) -> "♗"
+    | Piece (White, Knight) -> "♘"
+    | Piece (White, Pawn) -> "♙"
+    | Piece (Black, King) -> "♚"
+    | Piece (Black, Queen) -> "♛"
+    | Piece (Black, Rook) -> "♜"
+    | Piece (Black, Bishop) -> "♝"
+    | Piece (Black, Knight) -> "♞"
+    | Piece (Black, Pawn) -> "♟︎"
 
 let squareToString = function
     | EmptySquare _ -> "  "
@@ -86,7 +106,7 @@ let squareWithActions capList square =
 
     let squareActionToString =
         square
-        |> Square.position
+        |> Square.piecePosition
         |> capabilityAt
         |> Option.map fst
         |> Option.map actionToString
@@ -94,40 +114,88 @@ let squareWithActions capList square =
 
     (squareToString square) + squareActionToString
 
-let plyOutputSuffix = function
-    | RegularPly _ -> ""
-    | CheckPly _ -> "+"
+let generalSourceDiscriminator ambiguousPlies s =
+    let otherAtSameRank = Seq.exists (fun (x: Ply) -> rank x.source = rank s) ambiguousPlies
+    let otherAtSameFile = Seq.exists (fun (x: Ply) -> file x.source = file s) ambiguousPlies
 
-let plyToAlgebraic plyOutput =
-    let suffix = plyOutputSuffix plyOutput
+    let rankDiscriminator =
+        if Seq.isEmpty ambiguousPlies || (not otherAtSameRank && otherAtSameFile) then
+            ""
+        else
+            fileToAlgebraic s
+    let fileDiscriminator = if otherAtSameFile then rankToAlgebraic s else ""
+
+    rankDiscriminator + fileDiscriminator
+
+let moveSourceDiscriminator ambiguousPlies shape s =
+    match shape with
+    | Pawn
+    | King -> ""
+    | _ -> generalSourceDiscriminator ambiguousPlies s
+
+let captureSourceDiscriminator ambiguousPlies shape s =
+    match shape with
+    | Pawn -> fileToAlgebraic s
+    | King -> ""
+    | _ -> generalSourceDiscriminator ambiguousPlies s
+
+let shapeString shape =
+    match shape with
+    | Pawn -> ""
+    | _ -> shape.toString
+
+let plyToAlgebraic (plyOutput: PlyOutput) =
+    let checkSuffix = if plyOutput.isCheck then "+" else ""
     let ply = plyOutput.ply
-    let sourcePos, targetPos = Ply.positions ply
-    let targetPosString = positionToAlgebraic targetPos
-    let sourceFile = (fst sourcePos)
-    match ply with
-    | Move (Piece (_, Pawn), _, _) ->
-        $"%s{targetPosString}%s{suffix}"
-    | Move (Piece (_, shape), _, _) ->
-        $"%s{shape.toString}%s{targetPosString}%s{suffix}"
-    | Capture (Piece (_, shape), _, _) ->
-        match shape with
-        | Pawn -> $"%s{sourceFile.toAlgebraic}x%s{targetPosString}%s{suffix}"
-        | _ -> $"%s{shape.toString}x%s{targetPosString}"
-    | CaptureEnPassant _ -> $"%s{sourceFile.toAlgebraic}x%s{targetPosString}%s{suffix}"
-    | CastleKingSide _ -> $"O-O%s{suffix}"
-    | CastleQueenSide _ -> $"O-O-O%s{suffix}"
-    | Promote (_, _, _, targetShape) -> $"%s{targetPosString}=%s{targetShape.toString}%s{suffix}"
-    | CaptureAndPromote (_, _, _, targetShape) -> $"%s{sourceFile.toAlgebraic}x%s{targetPosString}=%s{targetShape.toString}%s{suffix}"
+    let restOfPlies = plyOutput.restOfPlies
+    let ambiguousPlies =
+        restOfPlies
+        |> Seq.where (fun p ->
+            p.source <> ply.source &&
+            p.plyType = ply.plyType &&
+            p.shape = ply.shape &&
+            p.target = ply.target)
+
+    let algebraicWithoutSuffix =
+        match ply with
+        | Move (Piece (_, shape), s, t) ->
+            let sourceDiscriminator = moveSourceDiscriminator ambiguousPlies shape s
+            let targetPosString = positionToAlgebraic t
+            
+            (shapeString shape) + sourceDiscriminator + targetPosString
+        | Capture (Piece (_, shape), s, t) ->
+            let sourceDiscriminator = captureSourceDiscriminator ambiguousPlies shape s
+            let targetPosString = positionToAlgebraic t
+            (shapeString shape) + sourceDiscriminator + "x" + targetPosString
+        | CaptureEnPassant (_, s, t) ->
+            let sourceDiscriminator = captureSourceDiscriminator ambiguousPlies Pawn s
+            let targetPosString = positionToAlgebraic t
+            (shapeString Pawn) + sourceDiscriminator + "x" + targetPosString
+        | CastleKingSide _ -> "O-O"
+        | CastleQueenSide _ -> "O-O-O"
+        | Promote (_, _, t, targetShape) ->
+            let targetPosString = positionToAlgebraic t
+            $"%s{targetPosString}=%s{targetShape.toString}"
+        | CaptureAndPromote (_, s, t, targetShape) ->
+            let targetPosString = positionToAlgebraic t
+            let rankDiscriminator = fileToAlgebraic s
+            let sourceDiscriminator = rankDiscriminator
+            $"%s{sourceDiscriminator}x%s{targetPosString}=%s{targetShape.toString}"
+
+    algebraicWithoutSuffix + checkSuffix
 
 let playerActionToAlgebraic = function
-    | MovePiece ply -> plyToAlgebraic (RegularPly ply)
+    | MovePiece (ply, restOfPlies) -> plyToAlgebraic { ply = ply; restOfPlies = restOfPlies; isCheck = false }
     | Resign -> ":r"
-    | OfferDraw _ -> ":d"
+    | OfferDraw -> ":d"
     | AcceptDraw -> ":a"
-    | DeclineDraw _ -> ":d"
+    | DeclineDraw -> ":d"
 
 let printPositions =
     List.map positionToAlgebraic >> List.iter (printf "%A")
+
+let executableActionToAlgebraic (action: ExecutableAction) =
+    playerActionToAlgebraic action.action
 
 let cellColor (file: File, rank: Rank) =
     match (file.toInt + rank.toInt) % 2 with
@@ -140,54 +208,66 @@ let movesToPGN =
     >> Seq.indexed
     >> Seq.map (fun (idx, plies) ->
         match plies with
-        |[whitePly] -> $"%i{idx+1}. %s{plyToAlgebraic whitePly}"
-        |[whitePly; blackPly] -> $"%i{idx+1}. %s{plyToAlgebraic whitePly} %s{plyToAlgebraic blackPly}"
+        |[whitePly] -> $"%i{idx+1}. %s{ plyToAlgebraic whitePly }"
+        |[whitePly; blackPly] -> $"%i{idx+1}. %s{ plyToAlgebraic whitePly } %s{ plyToAlgebraic blackPly }"
         |_ -> "")
     >> String.concat " "
 
-let outcomeToResult outcome =
+let outcomeToResultSeparator outcome =
     match outcome with
+    | Draw _
+    | DrawOffer _
+    | DrawDeclinement _
+    | LostByResignation _ -> " "
+    | _ -> ""
+
+let outcomeToResult = function
     | Draw (_, _, drawType) ->
         $"1/2-1/2 {{%A{drawType}}}"
     | DrawOffer _ ->
         "{Draw offered}"
     | DrawDeclinement _ ->
         "{Draw declined}"
-    | LostByResignation (_, player)
-    | WonByCheckmate (_, player) -> 
+    | LostByResignation (_, player) ->
         match player with
         | Black -> "1-0"
         | White -> "0-1"
-    | _ ->
-        ""
+    | WonByCheckmate (_, player) ->
+        match player with
+        | Black -> "# 1-0"
+        | White -> "# 0-1"
+    | GameStarted _
+    | PlayerMoved _ -> ""
 
-let outcomeToSimpleResult outcome =
+let outcomeToResultSuffix outcome =
+    $"%s{outcomeToResultSeparator outcome}%s{outcomeToResult outcome}"
+
+let outcomeToSimpleResultSuffix outcome =
     match outcome with
     | Draw _ ->
-        "1/2-1/2"
-    | LostByResignation (_, player)
-    | WonByCheckmate (_, player) -> 
+        " 1/2-1/2"
+    | LostByResignation (_, player) ->
         match player with
-        | Black -> "1-0"
-        | White -> "0-1"
+        | Black -> " 1-0"
+        | White -> " 0-1"
+    | WonByCheckmate (_, player) ->
+        match player with
+        | Black -> "# 1-0"
+        | White -> "# 0-1"
     | _ ->
         ""
 
-let replaceLastCheckByCheckmate (pgn: string) = $"%s{pgn.TrimEnd('+')}#"
+let removeLastCheck (pgn: string) = pgn.TrimEnd('+')
 
 let movesOutput (outcome: PlayerActionOutcome) =
     let pgn = movesToPGN outcome.displayInfo.moves
     match outcome with
-    | WonByCheckmate _ -> replaceLastCheckByCheckmate pgn
+    | WonByCheckmate _ -> removeLastCheck pgn
     | _ -> pgn
-    
-let outcomeToPGN outcome =
-    let outcomeRepr = outcomeToResult outcome
-    let outcomeReprSeparator = if outcomeRepr = "" then "" else " "
-    $"%s{movesOutput outcome}%s{outcomeReprSeparator}%s{outcomeRepr}"
 
-let outcomeToSimplePGN outcome =
-    $"%s{movesOutput outcome} %s{outcomeToSimpleResult outcome}"
+let outcomeToPGN outcome = (movesOutput outcome) + (outcomeToResultSuffix outcome)
+
+let outcomeToSimplePGN outcome = (movesOutput outcome) + (outcomeToSimpleResultSuffix outcome)
 
 let boardToFEN (b: Square[,]) =
     let rowFolder (list, empties) square =
@@ -217,10 +297,11 @@ let boardToFEN (b: Square[,]) =
     |> Seq.map rowToFEN
     |> String.concat "/"
 
-type GameState with
+
+type ChessStateRepresentation with
     member this.toFEN =
         [
-            boardToFEN (getDisplayInfo this).board
+            boardToFEN this.board
             this.statusToFEN
         ]
         |> String.concat " "
@@ -248,3 +329,7 @@ type GameState with
             this.numberOfMoves.ToString()
         ]
         |> String.concat " "
+
+type ChessState with
+    member internal this.toFEN = (getDisplayInfo this).toFEN
+    member internal this.statusToFEN = (getDisplayInfo this).statusToFEN

@@ -58,7 +58,7 @@
 
     type Result<'a> = 
     | Success of 'a
-    | Failure of string list
+    | Failure of 'a * string list
 
     module Result = 
 
@@ -66,8 +66,8 @@
             match xResult with
             | Success x ->
                 Success (f x)
-            | Failure errs ->
-                Failure errs
+            | Failure (x, err) ->
+                Failure (f x, err)
         // Signature: ('a -> 'b) -> Result<'a> -> Result<'b>
 
         // "return" is a keyword in F#, so abbreviate it
@@ -79,21 +79,28 @@
             match fResult,xResult with
             | Success f, Success x ->
                 Success (f x)
-            | Failure errs, Success x ->
-                Failure errs
-            | Success f, Failure errs ->
-                Failure errs
-            | Failure errs1, Failure errs2 ->
+            | Failure (f, errs), Success x ->
+                Failure (f x, errs)
+            | Success f, Failure (x, errs) ->
+                Failure (f x, errs)
+            | Failure (f, errs1), Failure (x, errs2) ->
                 // concat both lists of errors
-                Failure (List.concat [errs1; errs2])
+                Failure (f x, List.concat [errs1; errs2])
         // Signature: Result<('a -> 'b)> -> Result<'a> -> Result<'b>
 
         let bind f xResult = 
             match xResult with
             | Success x ->
                 f x
-            | Failure errs ->
-                Failure errs
+            | Failure (x, errs) ->
+                match f x with
+                | Success b -> Failure (b, errs)
+                | Failure (b, errsb) -> Failure (b, List.concat [errs; errsb])
+
+        let defaultWith successFunc failureFunc result =
+            match result with
+            | Success x -> successFunc x
+            | Failure (x, err) -> failureFunc x err
 
     let (>?>) f1 f2 = f1 >> Option.bind f2
 

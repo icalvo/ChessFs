@@ -1,17 +1,14 @@
-﻿namespace ChessFs.Tests
+﻿namespace ChessFs.Tests.Chess
 
 
 module ``Chess Tests`` =
     open Xunit
     open Swensen.Unquote
+    open Utils
     open CoreTypes
     open Chess
     open Notation
     open ChessStateMachine
-
-    let WhitePawn = Piece (White, Pawn)
-    let BlackPawn = Piece (Black, Pawn)
-    let BlackKnight = Piece (Black, Knight)
 
     [<Fact>]
     let ``Directions tests``() =
@@ -59,75 +56,66 @@ module ``Chess Tests`` =
         List.map playerActionToAlgebraic
         >> List.sort
 
-
-    let result2 = 
-        List.map (fun moveInfo -> moveInfo.action)
-        >> result3
-        >> List.sort
-        
     let result = function
         | GameStarted (_, availableActions)
         | PlayerMoved (_, availableActions) ->
-            result2 availableActions
+            List.map executableActionToAlgebraic availableActions |> List.sort
         | _ -> List.empty
 
 
     [<Fact>]
     let ``Promoting available actions``() =
-        test <@
+        getOutcomeFromNewBoard {
+            playerInTurn = White
+            pieces =
+                Map.ofList [
+                    C7, WhitePawn
+                ]
+            whitePlayerCastlingRights = bothWaysCastlingRights
+            blackPlayerCastlingRights = bothWaysCastlingRights
+            pawnCapturableEnPassant = None
+            plies = []
+            pliesWithoutPawnOrCapture = 0
+            repeatableStates = []
+            numberOfMoves = 1
+        }
+        |> result =! [":d"; ":r"; "c8=B"; "c8=N"; "c8=Q"; "c8=R"]
 
-                makePlayerMoveResultWithCapabilities {
-                    playerInTurn = White
-                    pieces =
-                        Map.ofList [
-                            placedPiece White Pawn C7
-                        ]
-                    whitePlayerCastlingRights = canCastle
-                    blackPlayerCastlingRights = canCastle
-                    pawnCapturableEnPassant = None
-                    plies = []
-                    pliesWithoutPawnOrCapture = 0
-                    repeatableStates = []
-                    numberOfMoves = 1
-                }
-                |> result = [":d"; ":r"; "c8=B"; "c8=N"; "c8=Q"; "c8=R"] 
-        @>
 
     [<Fact>]
     let ``Capture-promoting available actions``() =
-        test <@
-                makePlayerMoveResultWithCapabilities {
+                getOutcomeFromNewBoard {
                     playerInTurn = White
                     pieces =
                         Map.ofList [
-                            placedPiece White Pawn   C7
-                            placedPiece Black Rook   B8
+                            C7, WhitePawn
+                            B8, BlackRook
                         ]
-                    whitePlayerCastlingRights = canCastle
-                    blackPlayerCastlingRights = canCastle
+                    whitePlayerCastlingRights = bothWaysCastlingRights
+                    blackPlayerCastlingRights = bothWaysCastlingRights
                     pawnCapturableEnPassant = None
                     plies = []
                     pliesWithoutPawnOrCapture = 0
                     repeatableStates = []
                     numberOfMoves = 1
                 }
-                |> result = [":d"; ":r"; "c8=B"; "c8=N"; "c8=Q"; "c8=R"; "cxb8=B"; "cxb8=N"; "cxb8=Q"; "cxb8=R"]
-        @>
+                |> result =! [":d"; ":r"; "c8=B"; "c8=N"; "c8=Q"; "c8=R"; "cxb8=B"; "cxb8=N"; "cxb8=Q"; "cxb8=R"]
+
 
     [<Fact>]
     let ``Castling not possible when intermediate squares are in check``() =
         test <@
-                makePlayerMoveResultWithCapabilities {
+                getOutcomeFromNewBoard {
                     playerInTurn = White
                     pieces =
                         Map.ofList [
-                            placedPiece White King   E1
-                            placedPiece White Rook   A1
-                            placedPiece White Rook   H1
-                            placedPiece Black Rook   G8
+                            E1, WhiteKing
+                            A1, WhiteRook
+                            H1, WhiteRook
+                            G8, BlackRook
                         ]
-                    whitePlayerCastlingRights = canCastle
-                    blackPlayerCastlingRights = canCastle
+                    whitePlayerCastlingRights = bothWaysCastlingRights
+                    blackPlayerCastlingRights = bothWaysCastlingRights
                     pawnCapturableEnPassant = None
                     plies = []
                     pliesWithoutPawnOrCapture = 0
@@ -141,39 +129,37 @@ module ``Chess Tests`` =
 
     [<Fact>]
     let ``Castling possible when rook attacked``() =
-        test <@
-                makePlayerMoveResultWithCapabilities {
-                    playerInTurn = White
-                    pieces =
-                        Map.ofList [
-                            placedPiece White King   E1
-                            placedPiece White Rook   H1
-                            placedPiece White Rook   A1
-                            placedPiece Black Rook   H8
-                        ]
-                    whitePlayerCastlingRights = canCastle
-                    blackPlayerCastlingRights = canCastle
-                    pawnCapturableEnPassant = None
-                    plies = []
-                    pliesWithoutPawnOrCapture = 0
-                    repeatableStates = []
-                    numberOfMoves = 1
-                }
-                |> result = [":d"; ":r"; "Kd1"; "Kd2"; "Ke2"; "Kf1"; "Kf2"; "O-O"; "O-O-O"; "Ra2"; "Ra3"; "Ra4";
-                "Ra5"; "Ra6"; "Ra7"; "Ra8"; "Rb1"; "Rc1"; "Rd1"; "Rf1"; "Rg1";
-                "Rh2"; "Rh3"; "Rh4"; "Rh5"; "Rh6"; "Rh7"; "Rxh8"] 
-        @>
+            getOutcomeFromNewBoard {
+                playerInTurn = White
+                pieces =
+                    Map.ofList [
+                        E1, WhiteKing
+                        H1, WhiteRook
+                        A1, WhiteRook
+                        H8, BlackRook
+                    ]
+                whitePlayerCastlingRights = bothWaysCastlingRights
+                blackPlayerCastlingRights = bothWaysCastlingRights
+                pawnCapturableEnPassant = None
+                plies = []
+                pliesWithoutPawnOrCapture = 0
+                repeatableStates = []
+                numberOfMoves = 1
+            }
+            |> result =! [":d"; ":r"; "Kd1"; "Kd2"; "Ke2"; "Kf1"; "Kf2"; "O-O"; "O-O-O"; "Ra2"; "Ra3"; "Ra4";
+            "Ra5"; "Ra6"; "Ra7"; "Ra8"; "Rb1"; "Rc1"; "Rd1"; "Rf1"; "Rg1";
+            "Rh2"; "Rh3"; "Rh4"; "Rh5"; "Rh6"; "Rh7"; "Rxh8"] 
 
     [<Fact>]
     let ``King cannot move to check``() =
         test <@
-                makePlayerMoveResultWithCapabilities {
+                getOutcomeFromNewBoard {
                     playerInTurn = White
                     pieces =
                         Map.ofList [
-                            placedPiece White King   E1
-                            placedPiece Black Rook   F8
-                            placedPiece Black King   H8
+                            E1, WhiteKing
+                            F8, BlackRook
+                            H8, BlackKing
                         ]
                     whitePlayerCastlingRights = { canCastleKingSide = false; canCastleQueenSide = false }
                     blackPlayerCastlingRights = { canCastleKingSide = false; canCastleQueenSide = false }
@@ -186,69 +172,42 @@ module ``Chess Tests`` =
                 |> result = [":d"; ":r"; "Kd1"; "Kd2"; "Ke2" ]
         @>
 
-    let findExecutableActionAux (input: string) availableActions =
-            availableActions
-            |> List.filter (fun { action = m } -> (playerActionToAlgebraic m).ToLowerInvariant() = input.ToLowerInvariant())
-            |> List.tryHead
+    let findExecutableAction2 (input: string) =
+        Seq.tryFind (fun action -> (executableActionToAlgebraic action).ToLowerInvariant() = input.ToLowerInvariant())
 
     let handleChessActionOutcome2 formerPlayerActionOutcome (input: string) =
         match formerPlayerActionOutcome with
         | Some (GameStarted (_, availableActions))
         | Some (PlayerMoved (_, availableActions)) ->
-            match findExecutableActionAux input availableActions with
+            match findExecutableAction2 input availableActions with
             | Some x -> Some (x.execute())
             | None -> None
         | _ -> None
 
-    let gameStateAfterE4 = initialGameState |> nextGameState (Move (WhitePawn, E2, E4))
-
-    let gameStateAfter game move =
-        makePlayerMoveResultWithCapabilities game
-
-    let gameStateWithCheck =
-        initialGameState
-        |> nextGameState (Move (WhitePawn, E2, E4))
-        |> nextGameState (Move (BlackPawn, E7, E5))
-        |> nextGameState (Move (WhitePawn, F2, F3))
-        |> nextGameState (Move (Piece (Black, Queen), D8, H4))
-
- ////   [<Fact>]
- ////   let ``Black available actions``() =
- ////       test <@
- ////               makePlayerMoveResultWithCapabilities gameStateAfterE4
- ////               |> result = [":d"; ":r"; "Na6"; "Nc6"; "Nf6"; "Nh6"; "a5"; "a6"; "b5"; "b6"; "c5"; "c6"; "d5"; "d6"; "e5"; "e6"; "f5";
- ////"f6"; "g5"; "g6"; "h5"; "h6"]
- ////       @>
-
- ////   [<Fact>]
- ////   let ``Black available player plies``() =
- ////       test <@
- ////               playerPlies gameStateAfterE4
- ////               |> Seq.toList
- ////               |> result4 = ["Na6"; "Nc6"; "Nf6"; "Nh6"; "a5"; "a6"; "b5"; "b6"; "c5"; "c6"; "d5"; "d6"; "e5"; "e6"; "f5";
- ////"f6"; "g5"; "g6"; "h5"; "h6"]
- ////       @>
+    let internal gameStateAfterE4 = initialGameState |> nextGameState (Move (WhitePawn, E2, E4)) []
 
     [<Fact>]
     let ``Black piece capabilities``() =
         test <@
                 pieceCapabilities gameStateAfterE4 (Piece (Black, Pawn), E7)
                 |> Seq.toList = [
-                    Move (Piece (Black,Pawn), E7, E6);
-                    Move (Piece (Black,Pawn), E7, E5)]
+                    Move (BlackPawn, E7, E6);
+                    Move (BlackPawn, E7, E5)]
         @>
+
+    let ResultDefault fn = Result.defaultWith fn (fun _ _ -> "Failure")
 
     let lastFEN moves =
         moves
-        |> algebraicChessStateMachine
+        |> algebraicStringChessStateMachine
         |> Seq.last
-        |> (fun x -> x.displayInfo.gameState.toFEN)
+        |> ResultDefault (fun x -> x.displayInfo.toFEN)
 
     [<Fact>]
     let ``FEN tests``() =
-        test <@ boardToFEN (getDisplayInfo initialGameState).board = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR" @>
-        test <@ boardToFEN (getDisplayInfo gameStateAfterE4).board = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR" @>
-        test <@ [ ] |> lastFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" @>
-        test <@ [ "e4" ] |> lastFEN = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1" @>
-        test <@ [ "e4"; "e5" ] |> lastFEN = "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2" @>
+        boardToFEN (getDisplayInfo initialGameState).board =! "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"
+        boardToFEN (getDisplayInfo gameStateAfterE4).board =! "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR"
+        [ ] |> lastFEN =! "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+        [ "e4" ] |> lastFEN =! "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
+        [ "e4"; "e5" ] |> lastFEN =! "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2"
 
