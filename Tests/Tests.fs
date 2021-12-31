@@ -172,18 +172,6 @@ module ``Chess Tests`` =
                 |> result = [":d"; ":r"; "Kd1"; "Kd2"; "Ke2" ]
         @>
 
-    let findExecutableAction2 (input: string) =
-        Seq.tryFind (fun action -> (executableActionToAlgebraic action).ToLowerInvariant() = input.ToLowerInvariant())
-
-    let handleChessActionOutcome2 formerPlayerActionOutcome (input: string) =
-        match formerPlayerActionOutcome with
-        | Some (GameStarted (_, availableActions))
-        | Some (PlayerMoved (_, availableActions)) ->
-            match findExecutableAction2 input availableActions with
-            | Some x -> Some (x.execute())
-            | None -> None
-        | _ -> None
-
     let internal gameStateAfterE4 = initialGameState |> nextGameState (Move (WhitePawn, E2, E4)) []
 
     [<Fact>]

@@ -8,7 +8,7 @@ The functional State pattern exposes all the possible operations and only transi
 
 The State Actions pattern is a way of doing this. For each state you will have a State-Actions object: it exposes representation data that allows UIs to show information about it, and a set of legal Actions. Each action has also representation data, but more importantly it has a function that return a new State-Actions object (which represents the result of executing said action on the former state).
 
-This way, the UI can show only that actions that are legal at each step.
+This way, the UI can show just the actions that are legal at each step.
 
 - StateActions:
 	- StateRepresentation
@@ -22,12 +22,14 @@ This is a really useful pattern with turn-based table games like chess or checke
 
 With this pattern you can easily implement a state machine. The input can be any kind of sequence; for example a sequence of strings with chess moves expressed in algebraic notation. The transition function will translate all the available Actions into the same a
 
-# PlayerActionOutcome (StateActions)
+## PlayerActionOutcome (StateActions)
+This type has its representation and list of actions available through the functions `PlayerActionOutcome.representation` and `PlayerActionOutcome.actions`.
 
-# ChessStateRepresentation (StateRepresentation)
+## ChessStateRepresentation (StateRepresentation)
+A record with useful data to represent a chess board.
 
-# ExecutableAction (Action)
-Represents the possible actions of a player when it is his/her turn.
+## ExecutableAction (Action)
+The representation of the action is available with `ExecutableAction.representation` and the function that gives the next `PlayerActionOutcome` is `ExecutableAction.executefn`.
 
-# PlayerActionDisplay (ActionRepresentation)
-Represents the possible actions of a player when it is his/her turn.
+## PlayerActionDisplay (ActionRepresentation)
+A discriminated union that represents the possible actions for a chess player.

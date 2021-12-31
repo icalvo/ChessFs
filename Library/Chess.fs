@@ -674,10 +674,7 @@ type PlayerActionOutcome =
     | DrawOffer of ChessStateRepresentation * Color * ExecutableAction list
     | DrawDeclinement of ChessStateRepresentation * Color * ExecutableAction list
 
-and ExecutableAction = {
-    action: PlayerActionDisplay
-    execute: unit -> PlayerActionOutcome
-}
+and ExecutableAction = PlayerActionRepresentation * (unit -> PlayerActionOutcome)
 
 and internal PlayerAction =
     | MovePiece of Ply * Ply list
@@ -686,20 +683,20 @@ and internal PlayerAction =
     | AcceptDraw
     | DeclineDraw of ExecutableAction list
 
-and PlayerActionDisplay =
+and PlayerActionRepresentation =
     | MovePiece of Ply * Ply list
     | Resign
     | OfferDraw
     | AcceptDraw
     | DeclineDraw
 
-let internal toDisplay (pa: PlayerAction) =
+let internal toRepresentation (pa: PlayerAction) =
     match pa with
-    | PlayerAction.MovePiece (ply, rest) -> PlayerActionDisplay.MovePiece (ply, rest)
-    | PlayerAction.Resign -> PlayerActionDisplay.Resign
-    | PlayerAction.OfferDraw _  -> PlayerActionDisplay.OfferDraw
-    | PlayerAction.AcceptDraw -> PlayerActionDisplay.AcceptDraw
-    | PlayerAction.DeclineDraw _ -> PlayerActionDisplay.DeclineDraw
+    | PlayerAction.MovePiece (ply, rest) -> PlayerActionRepresentation.MovePiece (ply, rest)
+    | PlayerAction.Resign -> PlayerActionRepresentation.Resign
+    | PlayerAction.OfferDraw _  -> PlayerActionRepresentation.OfferDraw
+    | PlayerAction.AcceptDraw -> PlayerActionRepresentation.AcceptDraw
+    | PlayerAction.DeclineDraw _ -> PlayerActionRepresentation.DeclineDraw
 
 module PlayerActionOutcome =
     let representation = function
@@ -721,6 +718,10 @@ module PlayerActionOutcome =
         | DrawOffer (_, _, availableActions)
         | DrawDeclinement (_, _, availableActions) ->
             availableActions
+
+module ExecutableAction =
+    let action = fst
+    let executefn = snd
 
 let internal representation (game: ChessState) =
     {
@@ -816,9 +817,8 @@ and internal getExecutableActions plies gameState =
     |> Seq.toList
 
 and internal makeNextExecutableAction gameState playerAction =
-    // the capability has the player & action to take & gameState baked in
     let executeFn() = executePlayerAction gameState playerAction
-    { action = toDisplay playerAction; execute = executeFn }
+    (toRepresentation playerAction), executeFn
 
 let internal initialGameState =
     let initialPieces = Map.ofList [

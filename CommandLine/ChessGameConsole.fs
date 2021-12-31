@@ -12,7 +12,7 @@ let isFinish = function
 
 let chessConsoleTransition game =
     let actions = PlayerActionOutcome.actions
-    let execute (x: ExecutableAction) = x.execute
+    let execute = ExecutableAction.executefn
     let normalizeAction action = (executableActionToAlgebraic action).ToLowerInvariant()
     gameConsoleTransition2 game actions execute normalizeAction printOutcome
 

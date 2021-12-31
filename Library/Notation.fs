@@ -191,11 +191,9 @@ let playerActionToAlgebraic = function
     | AcceptDraw -> ":a"
     | DeclineDraw -> ":d"
 
-let printPositions =
-    List.map positionToAlgebraic >> List.iter (printf "%A")
+let printPositions = List.map positionToAlgebraic >> List.iter (printf "%A")
 
-let executableActionToAlgebraic (action: ExecutableAction) =
-    playerActionToAlgebraic action.action
+let executableActionToAlgebraic action = action |> ExecutableAction.action |> playerActionToAlgebraic
 
 let cellColor (file: File, rank: Rank) =
     match (file.toInt + rank.toInt) % 2 with
