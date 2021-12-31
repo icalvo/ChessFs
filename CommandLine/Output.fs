@@ -88,12 +88,12 @@ let printMoves =
     movesToPGN >> printfn "Moves: %s"
  
 let printOutcome (outcome: PlayerActionOutcome) =
-    let displayInfo = outcome.displayInfo
-    printBoard displayInfo.board displayInfo.playerInTurn
+    let repr = PlayerActionOutcome.representation outcome
+    printBoard repr.board repr.playerInTurn
     outcome |> outcomeToSimplePGN |> printfn "%s"
-    if displayInfo.isCheck then
+    if repr.isCheck then
         printfn "CHECK!"
-    printfn $"%A{displayInfo.playerInTurn} to move"
+    printfn $"%A{repr.playerInTurn} to move"
     printfn ""
     match outcome with
     | Draw (_, _, drawType) -> 

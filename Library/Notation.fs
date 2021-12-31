@@ -115,8 +115,8 @@ let squareWithActions capList square =
     (squareToString square) + squareActionToString
 
 let generalSourceDiscriminator ambiguousPlies s =
-    let otherAtSameRank = Seq.exists (fun (x: Ply) -> rank x.source = rank s) ambiguousPlies
-    let otherAtSameFile = Seq.exists (fun (x: Ply) -> file x.source = file s) ambiguousPlies
+    let otherAtSameRank = Seq.exists (fun x -> rank (Ply.source x) = rank s) ambiguousPlies
+    let otherAtSameFile = Seq.exists (fun x -> file (Ply.source x) = file s) ambiguousPlies
 
     let rankDiscriminator =
         if Seq.isEmpty ambiguousPlies || (not otherAtSameRank && otherAtSameFile) then
@@ -151,10 +151,10 @@ let plyToAlgebraic (plyOutput: PlyOutput) =
     let ambiguousPlies =
         restOfPlies
         |> Seq.where (fun p ->
-            p.source <> ply.source &&
-            p.plyType = ply.plyType &&
-            p.shape = ply.shape &&
-            p.target = ply.target)
+            Ply.source  p <> Ply.source  ply &&
+            Ply.plyType p =  Ply.plyType ply &&
+            Ply.shape   p =  Ply.shape   ply &&
+            Ply.target  p =  Ply.target  ply)
 
     let algebraicWithoutSuffix =
         match ply with
@@ -260,7 +260,7 @@ let outcomeToSimpleResultSuffix outcome =
 let removeLastCheck (pgn: string) = pgn.TrimEnd('+')
 
 let movesOutput (outcome: PlayerActionOutcome) =
-    let pgn = movesToPGN outcome.displayInfo.moves
+    let pgn = movesToPGN (PlayerActionOutcome.representation outcome).moves
     match outcome with
     | WonByCheckmate _ -> removeLastCheck pgn
     | _ -> pgn
@@ -298,15 +298,8 @@ let boardToFEN (b: Square[,]) =
     |> String.concat "/"
 
 
-type ChessStateRepresentation with
-    member this.toFEN =
-        [
-            boardToFEN this.board
-            this.statusToFEN
-        ]
-        |> String.concat " "
-
-    member this.statusToFEN =
+module ChessStateRepresentation =
+    let statusToFEN (this: ChessStateRepresentation) =
         let colorToFEN = function
         | White -> "w"
         | Black -> "b"
@@ -330,6 +323,13 @@ type ChessStateRepresentation with
         ]
         |> String.concat " "
 
-type ChessState with
-    member internal this.toFEN = (getDisplayInfo this).toFEN
-    member internal this.statusToFEN = (getDisplayInfo this).statusToFEN
+    let toFEN (this: ChessStateRepresentation) =
+        [
+            boardToFEN this.board
+            statusToFEN this
+        ]
+        |> String.concat " "
+
+module ChessState =
+    let internal toFEN = representation >> ChessStateRepresentation.toFEN
+    let internal statusToFEN = representation >> ChessStateRepresentation.statusToFEN

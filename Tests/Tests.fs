@@ -201,12 +201,12 @@ module ``Chess Tests`` =
         moves
         |> algebraicStringChessStateMachine
         |> Seq.last
-        |> ResultDefault (fun x -> x.displayInfo.toFEN)
+        |> ResultDefault (PlayerActionOutcome.representation >> ChessStateRepresentation.toFEN)
 
     [<Fact>]
     let ``FEN tests``() =
-        boardToFEN (getDisplayInfo initialGameState).board =! "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"
-        boardToFEN (getDisplayInfo gameStateAfterE4).board =! "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR"
+        boardToFEN (representation initialGameState).board =! "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"
+        boardToFEN (representation gameStateAfterE4).board =! "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR"
         [ ] |> lastFEN =! "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
         [ "e4" ] |> lastFEN =! "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
         [ "e4"; "e5" ] |> lastFEN =! "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2"

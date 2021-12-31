@@ -244,8 +244,9 @@ type Ply =
     | CastleQueenSide of Color
     | Promote of Color * Position * Position * Shape
     | CaptureAndPromote of Color * Position * Position * Shape
-    member x.plyType =
-        match x with
+
+module Ply =
+    let plyType = function
         | Move _ -> MoveType
         | Capture _ -> CaptureType
         | CaptureEnPassant _ -> EnPassantType
@@ -253,14 +254,12 @@ type Ply =
         | CastleQueenSide _ -> CastleQueenSideType
         | Promote _ -> MoveAndPromoteType
         | CaptureAndPromote _ -> CaptureAndPromoteType
-    member x.isCapture =
-        match x with
+    let isCapture = function
         | Capture _
         | CaptureAndPromote _
         | CaptureEnPassant _ -> true
         | _ -> false
-    member x.source =
-        match x with
+    let source = function
         | Move (_, source, _) -> source
         | Capture (_, source, _) -> source
         | CaptureEnPassant (_, source, _) -> source
@@ -270,8 +269,7 @@ type Ply =
         | CastleQueenSide Black -> E8
         | Promote (_, source, _, _) -> source
         | CaptureAndPromote (_, source, _, _) -> source
-    member x.target =
-        match x with
+    let target = function
         | Move (_, _, target) -> target
         | Capture (_, _, target) -> target
         | CaptureEnPassant (_, _, target) -> target
@@ -281,8 +279,7 @@ type Ply =
         | CastleQueenSide Black -> C8
         | Promote (_, _, target, _) -> target
         | CaptureAndPromote (_, _, target, _) -> target
-    member x.shape =
-        match x with
+    let shape = function
         | Move (Piece (_, shape), _, _) -> shape
         | Capture (Piece(_, shape), _, _) -> shape
         | CaptureEnPassant _ -> Pawn
@@ -290,8 +287,7 @@ type Ply =
         | CastleQueenSide _ -> King
         | Promote _ -> Pawn
         | CaptureAndPromote _ -> Pawn
-    member x.boardChanges =
-        match x with
+    let boardChanges = function
         | Move (_, source, target) -> [
                 MovePiece (source, target)
             ]
@@ -543,11 +539,12 @@ let internal isCheck playerColor game =
     | Some kingPosition -> isAttackedBy (opponent playerColor) game kingPosition
     | None -> false
 
-let private rawExecutePly (ply:Ply) (pieces:Map<Position, Piece>) =
-    ply.boardChanges
+let private rawExecutePly ply pieces =
+    ply
+    |> Ply.boardChanges
     |> List.fold rawBoardChange pieces
 
-let internal nextGameState (ply:Ply) (restOfPlies: Ply list) gameState =
+let internal nextGameState ply restOfPlies gameState =
     let plyPreventsWhiteCastleKingSide =
         match ply with
         | CastleKingSide White
@@ -588,7 +585,8 @@ let internal nextGameState (ply:Ply) (restOfPlies: Ply list) gameState =
         | Capture (Piece (Black, King), _, _)
         | Capture (_, _, (A, R8)) -> true
         | _ -> false
-    let hasStructureChanged = ply.isCapture || ply.shape = Pawn
+
+    let hasStructureChanged = Ply.isCapture ply || Ply.shape ply = Pawn
     let nextGameStateTemp = {
         playerInTurn = opponent gameState.playerInTurn
         pieces = gameState.pieces |> rawExecutePly ply
@@ -703,19 +701,17 @@ let internal toDisplay (pa: PlayerAction) =
     | PlayerAction.AcceptDraw -> PlayerActionDisplay.AcceptDraw
     | PlayerAction.DeclineDraw _ -> PlayerActionDisplay.DeclineDraw
 
-type PlayerActionOutcome with
-    member this.displayInfo =
-        match this with
-        | Draw (displayInfo, _, _) -> displayInfo
-        | DrawDeclinement (displayInfo, _, _) -> displayInfo
-        | LostByResignation (displayInfo, _) -> displayInfo
-        | WonByCheckmate (displayInfo, _) -> displayInfo
-        | GameStarted (displayInfo, _) -> displayInfo
-        | PlayerMoved (displayInfo, _) -> displayInfo
-        | DrawOffer (displayInfo, _, _) -> displayInfo
+module PlayerActionOutcome =
+    let representation = function
+        | Draw (repr, _, _) -> repr
+        | DrawDeclinement (repr, _, _) -> repr
+        | LostByResignation (repr, _) -> repr
+        | WonByCheckmate (repr, _) -> repr
+        | GameStarted (repr, _) -> repr
+        | PlayerMoved (repr, _) -> repr
+        | DrawOffer (repr, _, _) -> repr
 
-    member this.actions =
-        match this with
+    let actions = function
         | Draw _
         | LostByResignation _
         | WonByCheckmate _ -> 
@@ -726,18 +722,7 @@ type PlayerActionOutcome with
         | DrawDeclinement (_, _, availableActions) ->
             availableActions
 
-let actions = function
-    | Draw _
-    | LostByResignation _
-    | WonByCheckmate _ -> 
-        []
-    | GameStarted (_, availableActions)
-    | PlayerMoved (_, availableActions)
-    | DrawOffer (_, _, availableActions)
-    | DrawDeclinement (_, _, availableActions) ->
-        availableActions
-
-let internal getDisplayInfo (game: ChessState) =
+let internal representation (game: ChessState) =
     {
         playerInTurn = game.playerInTurn
         whitePlayerCastlingRights = game.whitePlayerCastlingRights
@@ -774,50 +759,46 @@ and internal executePlayerAction (gameState: ChessState) (playerAction: PlayerAc
         let newGameState = nextGameState ply restOfPlies gameState
         getOutcomeFromNewBoard newGameState
     | PlayerAction.Resign ->
-        let displayInfo = getDisplayInfo gameState
-        LostByResignation (displayInfo, (opponent gameState.playerInTurn))
+        let repr = representation gameState
+        LostByResignation (repr, (opponent gameState.playerInTurn))
     | PlayerAction.AcceptDraw ->
-        let displayInfo = getDisplayInfo gameState
-        Draw (displayInfo, gameState.playerInTurn, Agreement)
+        let repr = representation gameState
+        Draw (repr, gameState.playerInTurn, Agreement)
     | PlayerAction.DeclineDraw actions ->
         let newGameState = { gameState with playerInTurn = opposite gameState.playerInTurn }
-        let displayInfo = getDisplayInfo newGameState
-        DrawDeclinement (displayInfo, newGameState.playerInTurn, actions)
+        let repr = representation newGameState
+        DrawDeclinement (repr, newGameState.playerInTurn, actions)
     | PlayerAction.OfferDraw actions ->
         if gameState.pliesWithoutPawnOrCapture >= 50 then
-            let displayInfo = getDisplayInfo gameState
-            Draw (displayInfo, gameState.playerInTurn, FiftyMovements)
+            let repr = representation gameState
+            Draw (repr, gameState.playerInTurn, FiftyMovements)
         elif gameState.repetitionCount >= 3 then
-            let displayInfo = getDisplayInfo gameState
-            Draw (displayInfo, gameState.playerInTurn, ThreefoldRepetition)
+            let repr = representation gameState
+            Draw (repr, gameState.playerInTurn, ThreefoldRepetition)
         else
             let newGameState = { gameState with playerInTurn = opposite gameState.playerInTurn }
-            let displayInfo = getDisplayInfo newGameState
+            let repr = representation newGameState
             let drawOfferActions = getDrawOfferActions newGameState actions
-            DrawOffer (displayInfo, newGameState.playerInTurn, drawOfferActions)
+            DrawOffer (repr, newGameState.playerInTurn, drawOfferActions)
 
 and internal getOutcomeFromNewBoard (gameState: ChessState) =
+    let repr = representation gameState
     if gameState.pliesWithoutPawnOrCapture > 75 then
-        let displayInfo = getDisplayInfo gameState
-        Draw (displayInfo, gameState.playerInTurn, SeventyFiveMovements)
+        Draw (repr, gameState.playerInTurn, SeventyFiveMovements)
     elif gameState.repetitionCount >= 5 then
-        let displayInfo = getDisplayInfo gameState
-        Draw (displayInfo, gameState.playerInTurn, FivefoldRepetition)
+        Draw (repr, gameState.playerInTurn, FivefoldRepetition)
     else
         let playerPlies = playerPlies gameState |> Seq.toList
         let canMove = playerPlies |> (not << List.isEmpty)
         if canMove then
             let actions = getExecutableActions playerPlies gameState
-            let representation = getDisplayInfo gameState
             match gameState.plies |> List.length with
-            | 0 -> GameStarted (representation, actions)
-            | _ -> PlayerMoved (representation, actions)
+            | 0 -> GameStarted (repr, actions)
+            | _ -> PlayerMoved (repr, actions)
         else if isCheck gameState.playerInTurn gameState then
-            let displayInfo = getDisplayInfo gameState
-            WonByCheckmate (displayInfo, gameState.playerInTurn)
+            WonByCheckmate (repr, gameState.playerInTurn)
         else
-            let displayInfo = getDisplayInfo gameState
-            Draw (displayInfo, gameState.playerInTurn, Stalemate)
+            Draw (repr, gameState.playerInTurn, Stalemate)
 
 and internal getDrawOfferActions gameState actionsBeforeOffer =
     [PlayerAction.AcceptDraw;PlayerAction.DeclineDraw actionsBeforeOffer]

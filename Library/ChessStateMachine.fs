@@ -5,7 +5,7 @@ open Chess
 open Notation
 
 let chessStateMachineFrom initialState translateAction normalizeInput input =
-    let actions (x: PlayerActionOutcome) = x.actions
+    let actions = PlayerActionOutcome.actions
     let execute (x: ExecutableAction) = x.execute
     stateActionsFailingStateMachine initialState actions translateAction normalizeInput execute input
 
@@ -19,6 +19,7 @@ let algebraicStringChessStateMachine input = algebraicChessStateMachine id input
 
 
 let chessIgnoringStateMachineFrom initialState translateAction normalizeInput input =
+    let actions = PlayerActionOutcome.actions
     let execute (x: ExecutableAction) = x.execute
     stateActionsIgnoringStateMachine initialState actions translateAction normalizeInput execute input
 

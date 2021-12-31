@@ -1,4 +1,8 @@
-# StateActions pattern
+﻿# ♟ ChessFs
+
+ChessFs is a chess engine developed in F#.
+
+## StateActions pattern
 
 The functional State pattern exposes all the possible operations and only transitions to a different state if the operation is legal. This is a nice pattern if the number of operations is low. However, when the number of legal operations and states is not well defined beforehand, it is better to only expose the legal operations.
 
@@ -20,7 +24,7 @@ With this pattern you can easily implement a state machine. The input can be any
 
 # PlayerActionOutcome (StateActions)
 
-# DisplayInfo (StateRepresentation)
+# ChessStateRepresentation (StateRepresentation)
 
 # ExecutableAction (Action)
 Represents the possible actions of a player when it is his/her turn.
