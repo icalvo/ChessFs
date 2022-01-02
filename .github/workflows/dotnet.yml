@@ -19,6 +19,8 @@ jobs:
         dotnet-version: 6.0.x
     - name: Restore dependencies
       run: dotnet restore
+    - name: Install FSharpLint
+      run: dotnet tool install -g dotnet-fsharplint
     - name: Build
       run: dotnet build --no-restore
     - name: Test

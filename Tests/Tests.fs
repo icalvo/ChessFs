@@ -114,8 +114,7 @@ module ``Chess Tests`` =
                 numberOfMoves = 1
             } false
             |> result |> Set.containsAll ["c8=B"; "c8=N"; "c8=Q"; "c8=R";
-            "cxb8=B"; "cxb8=N"; "cxb8=Q"; "cxb8=R"] = true @>
-
+            "cxb8=B"; "cxb8=N"; "cxb8=Q"; "cxb8=R"] @>
 
     [<Fact>]
     let ``Castling not possible when intermediate squares are in check``() =
