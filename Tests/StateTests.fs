@@ -8,7 +8,10 @@ module ``transitions`` =
     open Notation
     open ChessStateMachine
 
-    let ResultDefault fn = Result.defaultWith fn (fun x y -> "Failure: " + String.concat "," y)
+    let ResultDefault fn =
+        function
+        | Ok x -> fn x
+        | Error x -> "Failure: " + x
 
     let finalState (input: seq<string>) =
         input
@@ -24,6 +27,7 @@ module ``transitions`` =
 
     let outcomes =
         let statusToFEN = PlayerActionOutcome.representation >> ChessStateRepresentation.statusToFEN
+
         algebraicStringChessStateMachine
         >> Seq.map (ResultDefault (fun x -> $"%s{outcomeToPGN x} {{%s{statusToFEN x}}}"))
         >> Seq.toList
@@ -44,29 +48,27 @@ module ``transitions`` =
 
     [<Fact>]
     let ``Draw by agreement``() =
-        [ "f3"; ":d"; ":d"; "e5"; ":d"; ":a" ]
-        |> finalPGN =! "1. f3 e5 1/2-1/2 {Agreement}"
+        [ "f3"; "e5"; "d3:d"; ":a" ]
+        |> finalPGN =! "1. f3 e5 2. d3 1/2-1/2 {Agreement}"
 
     [<Fact>]
     let ``Draw declined and accepted``() =
-        [ "f3"; ":d"; ":d"; "e5"; ":d"; ":a" ]
+        [ "f3:d"; "e5"; "d3:d"; ":a" ]
         |> outcomes =! [
-        " {w KQkq - 0 1}";
-        "1. f3 {b KQkq - 0 1}";
-        "1. f3 {Draw offered} {w KQkq - 0 1}";
-        "1. f3 {Draw declined} {b KQkq - 0 1}";
+        "{GameStarted} {w KQkq - 0 1}";
+        "1. f3 {Draw offered} {b KQkq - 0 1}";
         "1. f3 e5 {w KQkq e6 0 2}";
-        "1. f3 e5 {Draw offered} {b KQkq e6 0 2}";
-        "1. f3 e5 1/2-1/2 {Agreement} {b KQkq e6 0 2}"]
+        "1. f3 e5 2. d3 {Draw offered} {b KQkq - 0 2}";
+        "1. f3 e5 2. d3 1/2-1/2 {Agreement} {b KQkq - 0 2}"]
 
     [<Fact>]
     let ``After three-fold repetition, a draw offer is automatically accepted``() =
-        [ "Nc3"; "Nc6"; "Nb1"; "Nb8"; "Nc3"; "Nc6"; "Nb1"; "Nb8"; "Nc3"; "Nc6"; "Nb1"; "Nb8"; ":d"; ]
+        [ "Nc3"; "Nc6"; "Nb1"; "Nb8"; "Nc3"; "Nc6"; "Nb1"; "Nb8"; "Nc3"; "Nc6"; "Nb1"; "Nb8:d"; ]
         |> finalPGN =! "1. Nc3 Nc6 2. Nb1 Nb8 3. Nc3 Nc6 4. Nb1 Nb8 5. Nc3 Nc6 6. Nb1 Nb8 1/2-1/2 {ThreefoldRepetition}"
 
     [<Fact>]
     let ``After three-fold repetition in the past, a draw offer is NOT automatically accepted``() =
-        [ "Nc3"; "Nc6"; "Nb1"; "Nb8"; "Nc3"; "Nc6"; "Nb1"; "Nb8"; "Nc3"; "Nc6"; "Nb1"; "Nb8"; "e4"; ":d"; ]
+        [ "Nc3"; "Nc6"; "Nb1"; "Nb8"; "Nc3"; "Nc6"; "Nb1"; "Nb8"; "Nc3"; "Nc6"; "Nb1"; "Nb8"; "e4:d"; ]
         |> finalPGN =! "1. Nc3 Nc6 2. Nb1 Nb8 3. Nc3 Nc6 4. Nb1 Nb8 5. Nc3 Nc6 6. Nb1 Nb8 7. e4 {Draw offered}"
 
     [<Fact>]
@@ -92,10 +94,15 @@ module ``transitions`` =
             |> Seq.concat
         let append s2 s1 = Seq.append s1 s2
 
-        initial
-        |> append cycles
-        |> Seq.take 53
-        |> append [":d"]
+        let moves =
+            initial
+            |> append cycles
+            |> Seq.take 53
+            |> Seq.toList
+
+        let makeLastMoveDrawOffer = List.mapi (fun idx item -> if idx = (List.length moves) - 1 then item + ":d" else item)
+        moves
+        |> makeLastMoveDrawOffer
         |> finalPGN =! "1. e4 b6 2. Qh5 Ba6 3. Nc3 Bb7 4. Nb1 Bc8 5. Qa5 Ba6 6. Nc3 Bb7 7. Nb1 Bc8 8. Qb5 Ba6 9. Nc3 Bb7 10. Nb1 Bc8 11. Qc5 Ba6 12. Nc3 Bb7 13. Nb1 Bc8 14. Qd5 Ba6 15. Nc3 Bb7 16. Nb1 Bc8 17. Qe5 Ba6 18. Nc3 Bb7 19. Nb1 Bc8 20. Qf5 Ba6 21. Nc3 Bb7 22. Nb1 Bc8 23. Qg5 Ba6 24. Nc3 Bb7 25. Nb1 Bc8 26. Qh5 Ba6 27. Nc3 1/2-1/2 {FiftyMovements}"
 
     [<Fact>]

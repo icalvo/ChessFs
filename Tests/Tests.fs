@@ -57,79 +57,91 @@ module ``Chess Tests`` =
         >> List.sort
 
     let result = function
-        | GameStarted (_, availableActions)
-        | PlayerMoved (_, availableActions) ->
-            List.map executableActionToAlgebraic availableActions |> List.sort
-        | _ -> List.empty
+        | Ok x ->
+            match x with
+            | GameStarted (_, availableActions)
+            | PlayerMoved (_, availableActions, _) ->
+                List.map executableActionToAlgebraic availableActions |> Set.ofList
+            | _ -> Set.empty
+        | Error msg -> Set.ofList ["Invalid board: " + msg]
 
 
     [<Fact>]
     let ``Promoting available actions``() =
-        getOutcomeFromNewBoard {
+        let expectedActions = Set.ofList ["c8=B"; "c8=N"; "c8=Q"; "c8=R"]
+
+        setupStandardChessPosition {
             playerInTurn = White
             pieces =
                 Map.ofList [
                     C7, WhitePawn
+                    E1, WhiteKing
+                    H8, BlackKing
                 ]
-            whitePlayerCastlingRights = bothWaysCastlingRights
-            blackPlayerCastlingRights = bothWaysCastlingRights
+            whitePlayerCastlingRights = noCastlingRights
+            blackPlayerCastlingRights = noCastlingRights
             pawnCapturableEnPassant = None
             plies = []
             pliesWithoutPawnOrCapture = 0
             repeatableStates = []
             numberOfMoves = 1
-        }
-        |> result =! [":d"; ":r"; "c8=B"; "c8=N"; "c8=Q"; "c8=R"]
+        } false
+        |> result
+        |> Set.intersect expectedActions
+        =! expectedActions
 
+    module Set =
+        let containsAll l set = List.forall (fun x -> Set.contains x set) l
 
     [<Fact>]
     let ``Capture-promoting available actions``() =
-                getOutcomeFromNewBoard {
-                    playerInTurn = White
-                    pieces =
-                        Map.ofList [
-                            C7, WhitePawn
-                            B8, BlackRook
-                        ]
-                    whitePlayerCastlingRights = bothWaysCastlingRights
-                    blackPlayerCastlingRights = bothWaysCastlingRights
-                    pawnCapturableEnPassant = None
-                    plies = []
-                    pliesWithoutPawnOrCapture = 0
-                    repeatableStates = []
-                    numberOfMoves = 1
-                }
-                |> result =! [":d"; ":r"; "c8=B"; "c8=N"; "c8=Q"; "c8=R"; "cxb8=B"; "cxb8=N"; "cxb8=Q"; "cxb8=R"]
+        test <@
+            setupStandardChessPosition {
+                playerInTurn = White
+                pieces =
+                    Map.ofList [
+                        C7, WhitePawn
+                        B8, BlackRook
+                        E1, WhiteKing
+                        H8, BlackKing
+                    ]
+                whitePlayerCastlingRights = noCastlingRights
+                blackPlayerCastlingRights = noCastlingRights
+                pawnCapturableEnPassant = None
+                plies = []
+                pliesWithoutPawnOrCapture = 0
+                repeatableStates = []
+                numberOfMoves = 1
+            } false
+            |> result |> Set.containsAll ["c8=B"; "c8=N"; "c8=Q"; "c8=R";
+            "cxb8=B"; "cxb8=N"; "cxb8=Q"; "cxb8=R"] = true @>
 
 
     [<Fact>]
     let ``Castling not possible when intermediate squares are in check``() =
-        test <@
-                getOutcomeFromNewBoard {
-                    playerInTurn = White
-                    pieces =
-                        Map.ofList [
-                            E1, WhiteKing
-                            A1, WhiteRook
-                            H1, WhiteRook
-                            G8, BlackRook
-                        ]
-                    whitePlayerCastlingRights = bothWaysCastlingRights
-                    blackPlayerCastlingRights = bothWaysCastlingRights
-                    pawnCapturableEnPassant = None
-                    plies = []
-                    pliesWithoutPawnOrCapture = 0
-                    repeatableStates = []
-                    numberOfMoves = 1
-                }
-                |> result = [":d"; ":r"; "Kd1"; "Kd2"; "Ke2"; "Kf1"; "Kf2"; "O-O-O"; "Ra2"; "Ra3"; "Ra4";
-                "Ra5"; "Ra6"; "Ra7"; "Ra8"; "Rb1"; "Rc1"; "Rd1"; "Rf1"; "Rg1";
-                "Rh2"; "Rh3"; "Rh4"; "Rh5"; "Rh6"; "Rh7"; "Rh8"] 
-        @>
+        setupStandardChessPosition {
+            playerInTurn = White
+            pieces =
+                Map.ofList [
+                    E1, WhiteKing
+                    A1, WhiteRook
+                    H1, WhiteRook
+                    G8, BlackRook
+                    E4, BlackKing
+                ]
+            whitePlayerCastlingRights = { canCastleKingSide = true; canCastleQueenSide = false }
+            blackPlayerCastlingRights = noCastlingRights
+            pawnCapturableEnPassant = None
+            plies = []
+            pliesWithoutPawnOrCapture = 0
+            repeatableStates = []
+            numberOfMoves = 1
+        } false
+        |> result |> Set.contains "O-O" =! false
 
     [<Fact>]
     let ``Castling possible when rook attacked``() =
-            getOutcomeFromNewBoard {
+            setupStandardChessPosition {
                 playerInTurn = White
                 pieces =
                     Map.ofList [
@@ -137,53 +149,44 @@ module ``Chess Tests`` =
                         H1, WhiteRook
                         A1, WhiteRook
                         H8, BlackRook
+                        E3, BlackKing
                     ]
-                whitePlayerCastlingRights = bothWaysCastlingRights
-                blackPlayerCastlingRights = bothWaysCastlingRights
+                whitePlayerCastlingRights = { canCastleKingSide = true; canCastleQueenSide = false }
+                blackPlayerCastlingRights = noCastlingRights
                 pawnCapturableEnPassant = None
                 plies = []
                 pliesWithoutPawnOrCapture = 0
                 repeatableStates = []
                 numberOfMoves = 1
-            }
-            |> result =! [":d"; ":r"; "Kd1"; "Kd2"; "Ke2"; "Kf1"; "Kf2"; "O-O"; "O-O-O"; "Ra2"; "Ra3"; "Ra4";
-            "Ra5"; "Ra6"; "Ra7"; "Ra8"; "Rb1"; "Rc1"; "Rd1"; "Rf1"; "Rg1";
-            "Rh2"; "Rh3"; "Rh4"; "Rh5"; "Rh6"; "Rh7"; "Rxh8"] 
+            } false
+            |> result |> Set.contains "O-O" =! true
 
     [<Fact>]
     let ``King cannot move to check``() =
-        test <@
-                getOutcomeFromNewBoard {
-                    playerInTurn = White
-                    pieces =
-                        Map.ofList [
-                            E1, WhiteKing
-                            F8, BlackRook
-                            H8, BlackKing
-                        ]
-                    whitePlayerCastlingRights = { canCastleKingSide = false; canCastleQueenSide = false }
-                    blackPlayerCastlingRights = { canCastleKingSide = false; canCastleQueenSide = false }
-                    pawnCapturableEnPassant = None
-                    plies = []
-                    pliesWithoutPawnOrCapture = 0
-                    repeatableStates = []
-                    numberOfMoves = 1
-                }
-                |> result = [":d"; ":r"; "Kd1"; "Kd2"; "Ke2" ]
-        @>
+        setupStandardChessPosition {
+            playerInTurn = White
+            pieces =
+                Map.ofList [
+                    E1, WhiteKing
+                    F8, BlackRook
+                    H8, BlackKing
+                ]
+            whitePlayerCastlingRights = noCastlingRights
+            blackPlayerCastlingRights = noCastlingRights
+            pawnCapturableEnPassant = None
+            plies = []
+            pliesWithoutPawnOrCapture = 0
+            repeatableStates = []
+            numberOfMoves = 1
+        } false
+        |> result =! Set.ofList [":r"; "Kd1"; "Kd1:d"; "Kd2"; "Kd2:d"; "Ke2"; "Ke2:d" ]
 
-    let internal gameStateAfterE4 = initialGameState |> nextGameState (Move (WhitePawn, E2, E4)) []
+    let internal gameStateAfterE4 = algebraicStringChessIgnoringStateMachine ["e4"] |> Seq.last |> PlayerActionOutcome.representation
 
-    [<Fact>]
-    let ``Black piece capabilities``() =
-        test <@
-                pieceCapabilities gameStateAfterE4 (Piece (Black, Pawn), E7)
-                |> Seq.toList = [
-                    Move (BlackPawn, E7, E6);
-                    Move (BlackPawn, E7, E5)]
-        @>
-
-    let ResultDefault fn = Result.defaultWith fn (fun _ _ -> "Failure")
+    let ResultDefault fn =
+        function
+        | Ok x -> fn x
+        | Error x -> "Failure"
 
     let lastFEN moves =
         moves
@@ -194,7 +197,7 @@ module ``Chess Tests`` =
     [<Fact>]
     let ``FEN tests``() =
         boardToFEN (representation initialGameState).board =! "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"
-        boardToFEN (representation gameStateAfterE4).board =! "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR"
+        boardToFEN gameStateAfterE4.board =! "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR"
         [ ] |> lastFEN =! "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
         [ "e4" ] |> lastFEN =! "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
         [ "e4"; "e5" ] |> lastFEN =! "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2"

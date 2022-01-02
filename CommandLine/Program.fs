@@ -8,7 +8,7 @@ let main argv =
     printfn "Welcome to ChessFs! This console application shows a fully functional chess engine."
     printfn "All you see in each ply is provided by the engine: the board state, the list of possible moves and the outcome of the former move."
 
-    let game = newChessGame
+    let game = newStandardChessGame
     printOutcome game
     let commandLineInput = argv |> Seq.map (fun x -> lazy x);
     let input = commandLineInput |> Seq.append consoleInput

@@ -40,7 +40,7 @@ let cellForeground =
     | EmptySquare _ -> ConsoleColor.Black
 
 let printSquare sq =
-    cprintf (cellForeground sq) (cellBackground (Square.piecePosition sq)) $"%s{squareToString sq}"
+    cprintf (cellForeground sq) (cellBackground (Square.pieceCoord sq)) $"%s{squareToString sq}"
 
 let printBoard (b: Square[,]) color =
     let colorFunc =
@@ -105,15 +105,12 @@ let printOutcome (outcome: PlayerActionOutcome) =
     | WonByCheckmate (_, player) -> 
         printfn $"GAME WON by checkmating %A{player}"
         printfn ""
-    | PlayerMoved (_, availableActions) ->
+    | PlayerMoved (_, availableActions, true) ->
+        printfn $"DRAW OFFERED"
+        printActions availableActions
+    | PlayerMoved (_, availableActions, false) ->
         printActions availableActions
     | GameStarted (_, availableActions) -> 
         printfn "GAME STARTED"
         printActions availableActions
-    | DrawOffer (_, player, availableActions) ->
-        printfn $"DRAW OFFERED by %A{player}"
-        printActions availableActions
-    | DrawDeclinement (_, player, availableActions) ->
-        printActions availableActions
-        printfn $"DRAW DECLINED by %A{player}"
  

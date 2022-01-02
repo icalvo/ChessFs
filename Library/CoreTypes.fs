@@ -64,12 +64,12 @@ with
         | G -> 6
         | H -> 7
 
-type Position = File * Rank
+type Coordinate = File * Rank
 
-let file ((f, _):Position) =
+let file ((f, _):Coordinate) =
     f
 
-let rank ((_, r):Position) =
+let rank ((_, r):Coordinate) =
     r
 
 let A1 = (A, R1)
@@ -138,7 +138,7 @@ let H7 = (H, R7)
 let H8 = (H, R8)
 
 module Rank =
-    let next: Position -> Position option = function
+    let next: Coordinate -> Coordinate option = function
         | f, R1 -> Some (f, R2)
         | f, R2 -> Some (f, R3)
         | f, R3 -> Some (f, R4)
@@ -150,7 +150,7 @@ module Rank =
 
 
 
-    let prev: Position -> Position option = function
+    let prev: Coordinate -> Coordinate option = function
         | _, R1 -> None
         | f, R2 -> Some (f, R1)
         | f, R3 -> Some (f, R2)
@@ -161,7 +161,7 @@ module Rank =
         | f, R8 -> Some (f, R7)
 
 module File =
-    let next: Position -> Position option = function
+    let next: Coordinate -> Coordinate option = function
         | A, r -> Some (B, r)
         | B, r -> Some (C, r)
         | C, r -> Some (D, r)
@@ -171,7 +171,7 @@ module File =
         | G, r -> Some (H, r)
         | H, _ -> None
 
-    let prev: Position -> Position option = function
+    let prev: Coordinate -> Coordinate option = function
         | A, _ -> None
         | B, r -> Some (A, r)
         | C, r -> Some (B, r)

@@ -65,13 +65,13 @@ type Piece with
         | Piece (White, shape) -> shape.toString
         | Piece (Black, shape) -> shape.toString.ToLowerInvariant()
 
-let fileToAlgebraic ((f, _):Position) =
+let fileToAlgebraic ((f, _):Coordinate) =
     $"%s{f.toAlgebraic}"
 
-let rankToAlgebraic ((_, r):Position) =
+let rankToAlgebraic ((_, r):Coordinate) =
     $"%s{r.toString}"
 
-let positionToAlgebraic ((f, r):Position) =
+let coordToAlgebraic ((f, r):Coordinate) =
     $"%s{f.toAlgebraic}%s{r.toString}"
 
 let pieceToString = function
@@ -106,7 +106,7 @@ let squareWithActions capList square =
 
     let squareActionToString =
         square
-        |> Square.piecePosition
+        |> Square.pieceCoord
         |> capabilityAt
         |> Option.map fst
         |> Option.map actionToString
@@ -160,24 +160,24 @@ let plyToAlgebraic (plyOutput: PlyOutput) =
         match ply with
         | Move (Piece (_, shape), s, t) ->
             let sourceDiscriminator = moveSourceDiscriminator ambiguousPlies shape s
-            let targetPosString = positionToAlgebraic t
+            let targetPosString = coordToAlgebraic t
             
             (shapeString shape) + sourceDiscriminator + targetPosString
         | Capture (Piece (_, shape), s, t) ->
             let sourceDiscriminator = captureSourceDiscriminator ambiguousPlies shape s
-            let targetPosString = positionToAlgebraic t
+            let targetPosString = coordToAlgebraic t
             (shapeString shape) + sourceDiscriminator + "x" + targetPosString
         | CaptureEnPassant (_, s, t) ->
             let sourceDiscriminator = captureSourceDiscriminator ambiguousPlies Pawn s
-            let targetPosString = positionToAlgebraic t
+            let targetPosString = coordToAlgebraic t
             (shapeString Pawn) + sourceDiscriminator + "x" + targetPosString
         | CastleKingSide _ -> "O-O"
         | CastleQueenSide _ -> "O-O-O"
         | Promote (_, _, t, targetShape) ->
-            let targetPosString = positionToAlgebraic t
+            let targetPosString = coordToAlgebraic t
             $"%s{targetPosString}=%s{targetShape.toString}"
         | CaptureAndPromote (_, s, t, targetShape) ->
-            let targetPosString = positionToAlgebraic t
+            let targetPosString = coordToAlgebraic t
             let rankDiscriminator = fileToAlgebraic s
             let sourceDiscriminator = rankDiscriminator
             $"%s{sourceDiscriminator}x%s{targetPosString}=%s{targetShape.toString}"
@@ -185,13 +185,11 @@ let plyToAlgebraic (plyOutput: PlyOutput) =
     algebraicWithoutSuffix + checkSuffix
 
 let playerActionToAlgebraic = function
-    | MovePiece (ply, restOfPlies) -> plyToAlgebraic { ply = ply; restOfPlies = restOfPlies; isCheck = false }
+    | MovePiece (ply, restOfPlies, drawOffer) -> plyToAlgebraic { ply = ply; restOfPlies = restOfPlies; isCheck = false; drawOffer = false } + (if drawOffer then ":d" else "")
     | Resign -> ":r"
-    | OfferDraw -> ":d"
     | AcceptDraw -> ":a"
-    | DeclineDraw -> ":d"
 
-let printPositions = List.map positionToAlgebraic >> List.iter (printf "%A")
+let printCoordinates = List.map coordToAlgebraic >> List.iter (printf "%A")
 
 let executableActionToAlgebraic action = action |> ExecutableAction.action |> playerActionToAlgebraic
 
@@ -214,18 +212,13 @@ let movesToPGN =
 let outcomeToResultSeparator outcome =
     match outcome with
     | Draw _
-    | DrawOffer _
-    | DrawDeclinement _
+    | PlayerMoved (_, _, true)
     | LostByResignation _ -> " "
     | _ -> ""
 
 let outcomeToResult = function
     | Draw (_, _, drawType) ->
         $"1/2-1/2 {{%A{drawType}}}"
-    | DrawOffer _ ->
-        "{Draw offered}"
-    | DrawDeclinement _ ->
-        "{Draw declined}"
     | LostByResignation (_, player) ->
         match player with
         | Black -> "1-0"
@@ -234,8 +227,9 @@ let outcomeToResult = function
         match player with
         | Black -> "# 1-0"
         | White -> "# 0-1"
+    | PlayerMoved (_, _, true) -> "{Draw offered}"
     | GameStarted _
-    | PlayerMoved _ -> ""
+    | PlayerMoved (_, _, false) -> ""
 
 let outcomeToResultSuffix outcome =
     $"%s{outcomeToResultSeparator outcome}%s{outcomeToResult outcome}"
@@ -263,7 +257,10 @@ let movesOutput (outcome: PlayerActionOutcome) =
     | WonByCheckmate _ -> removeLastCheck pgn
     | _ -> pgn
 
-let outcomeToPGN outcome = (movesOutput outcome) + (outcomeToResultSuffix outcome)
+let outcomeToPGN outcome =
+    match outcome with
+    | GameStarted _ -> "{GameStarted}"
+    | _ -> (movesOutput outcome) + (outcomeToResultSuffix outcome)
 
 let outcomeToSimplePGN outcome = (movesOutput outcome) + (outcomeToSimpleResultSuffix outcome)
 
@@ -309,7 +306,7 @@ module ChessStateRepresentation =
             (if black.canCastleKingSide then "q" else "")
 
         let enPassantTarget = function
-        | Some pos -> positionToAlgebraic pos
+        | Some coord -> coordToAlgebraic coord
         | None -> "-"
 
         [

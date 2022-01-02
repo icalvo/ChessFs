@@ -19,10 +19,10 @@ module ``Notation Tests`` =
         (Piece (Black, Queen)).toFEN =! "q"
 
     [<Fact>]
-    let ``Position tests``() =
+    let ``Coordinate tests``() =
         fileToAlgebraic B4 =! "b"
         rankToAlgebraic B4 =! "4"
-        positionToAlgebraic B4 =! "b4"
+        coordToAlgebraic B4 =! "b4"
 
     [<Fact>]
     let ``Square tests``() =
@@ -37,42 +37,42 @@ module ``Notation Tests`` =
     [<Fact>]
     let ``plyToAlgebraic move check non-restOfPlies``() =
         plyToAlgebraic (CheckPly (rookMove(A6, E6),
-            [])) =! "Re6+"
+            [], false)) =! "Re6+"
     [<Fact>]
     let ``plyToAlgebraic capture pawn non-restOfPlies``() =
         plyToAlgebraic (RegularPly (pawnCapture(E4, F5),
-            [])) =! "exf5"
+            [], false)) =! "exf5"
     [<Fact>]
     let ``plyToAlgebraic capture pawn restOfPlies``() =
         plyToAlgebraic (RegularPly (pawnCapture(E4, F5),
-            [pawnCapture(G4, F5)])) =! "exf5"
+            [pawnCapture(G4, F5)], false)) =! "exf5"
     [<Fact>]
     let ``plyToAlgebraic capture promote restOfPlies``() =
         plyToAlgebraic (RegularPly (pawnPromotionCapture(E7, F8),
-            [pawnCapture(G7, F8)])) =! "exf8=Q"
+            [pawnCapture(G7, F8)], false)) =! "exf8=Q"
     [<Fact>]
     let ``plyToAlgebraic castle kingside``() =
-        plyToAlgebraic (RegularPly (CastleKingSide White, [])) =! "O-O"
+        plyToAlgebraic (RegularPly (CastleKingSide White, [], false)) =! "O-O"
     [<Fact>]
     let ``plyToAlgebraic castle queenside``() =
-        plyToAlgebraic (RegularPly (CastleQueenSide Black, [])) =! "O-O-O"
+        plyToAlgebraic (RegularPly (CastleQueenSide Black, [], false)) =! "O-O-O"
     [<Fact>]
     let ``plyToAlgebraic move non-restOfPlies``() =
         plyToAlgebraic (RegularPly (rookMove(A6, E6),
-            [])) =! "Re6"
+            [], false)) =! "Re6"
     [<Fact>]
     let ``plyToAlgebraic move other rook at the same rank``() =
         plyToAlgebraic (RegularPly (rookMove(A6, E6),
-            [rookMove(H6, E6)])) =! "Rae6"
+            [rookMove(H6, E6)], false)) =! "Rae6"
     [<Fact>]
     let ``plyToAlgebraic move other rook at the same file``() =
         plyToAlgebraic (RegularPly (rookMove(E4, E6),
-            [rookMove(E8, E6)])) =! "R4e6"
+            [rookMove(E8, E6)], false)) =! "R4e6"
     let ``plyToAlgebraic move other rook at different rank/file``() =
         plyToAlgebraic (RegularPly (rookMove(A6, E6),
-            [rookMove(E8, E6)])) =! "Rae6"
+            [rookMove(E8, E6)], false)) =! "Rae6"
     [<Fact>]
     let ``plyToAlgebraic move other knight at same file, another at same rank``() =
         plyToAlgebraic (RegularPly (knightMove(C3, E4),
-            [knightMove(C6, E4); knightMove(G3, E4)])) =! "Nc3e4"
+            [knightMove(C6, E4); knightMove(G3, E4)], false)) =! "Nc3e4"
 

@@ -56,52 +56,6 @@
         let apply arg fnlist = fnlist |> List.map (fun fn -> fn arg)
         let filterNones (s: 'a option list): 'a list = List.choose id s
 
-    type Result<'a> = 
-    | Success of 'a
-    | Failure of 'a * string list
-
-    module Result = 
-
-        let map f xResult = 
-            match xResult with
-            | Success x ->
-                Success (f x)
-            | Failure (x, err) ->
-                Failure (f x, err)
-        // Signature: ('a -> 'b) -> Result<'a> -> Result<'b>
-
-        // "return" is a keyword in F#, so abbreviate it
-        let retn x = 
-            Success x
-        // Signature: 'a -> Result<'a>
-
-        let apply fResult xResult = 
-            match fResult,xResult with
-            | Success f, Success x ->
-                Success (f x)
-            | Failure (f, errs), Success x ->
-                Failure (f x, errs)
-            | Success f, Failure (x, errs) ->
-                Failure (f x, errs)
-            | Failure (f, errs1), Failure (x, errs2) ->
-                // concat both lists of errors
-                Failure (f x, List.concat [errs1; errs2])
-        // Signature: Result<('a -> 'b)> -> Result<'a> -> Result<'b>
-
-        let bind f xResult = 
-            match xResult with
-            | Success x ->
-                f x
-            | Failure (x, errs) ->
-                match f x with
-                | Success b -> Failure (b, errs)
-                | Failure (b, errsb) -> Failure (b, List.concat [errs; errsb])
-
-        let defaultWith successFunc failureFunc result =
-            match result with
-            | Success x -> successFunc x
-            | Failure (x, err) -> failureFunc x err
-
     let (>?>) f1 f2 = f1 >> Option.bind f2
 
     let rec (*) f1 i =

@@ -10,8 +10,8 @@ let stateActionsFailingStateMachine initialState actions normalizeAction normali
             availableActions
             |> List.tryFind (fun x -> (x |> normalizeAction) = (i |> normalizeInput))
         match action with
-        | Some x -> Success ((execute x)())
-        | None -> Failure (sa, [ $"Could not find action %A{i}." ])
+        | Some x -> Ok ((execute x)())
+        | None -> Error $"Could not find action %A{i}."
 
     let isFinish = actions >> List.isEmpty
 
