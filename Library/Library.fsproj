@@ -15,9 +15,14 @@
     <Compile Include="CoreTypes.fs" />
     <Compile Include="Chess.fs" />
     <Compile Include="Notation.fs" />
+    <Compile Include="Parsing.fs" />
     <Compile Include="StateMachine.fs" />
     <Compile Include="StateActions.fs" />
     <Compile Include="ChessStateMachine.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FParsec" Version="1.1.1" />
   </ItemGroup>
 
 </Project>

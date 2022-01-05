@@ -65,6 +65,22 @@ type Piece with
         | Piece (White, shape) -> shape.toString
         | Piece (Black, shape) -> shape.toString.ToLowerInvariant()
 
+module Piece =
+    let ofFEN = function
+    | "K" ->  Some WhiteKing
+    | "Q" -> Some WhiteQueen
+    | "R" -> Some WhiteRook
+    | "B" -> Some WhiteBishop
+    | "N" -> Some WhiteKnight
+    | "P" -> Some WhitePawn
+    | "k" ->  Some BlackKing
+    | "q" -> Some BlackQueen
+    | "r" -> Some BlackRook
+    | "b" -> Some BlackBishop
+    | "n" -> Some BlackKnight
+    | "p" -> Some BlackPawn
+    | _   -> None
+
 let fileToAlgebraic ((f, _):Coordinate) =
     $"%s{f.toAlgebraic}"
 
@@ -209,60 +225,65 @@ let movesToPGN =
         |_ -> "")
     >> String.concat " "
 
-let outcomeToResultSeparator outcome =
-    match outcome with
-    | Draw _
-    | PlayerMoved (_, _, true)
-    | LostByResignation _ -> " "
-    | _ -> ""
+module PlayerActionOutcome =
+    let private outcomeToResultSeparator outcome =
+        match outcome with
+        | Draw _
+        | PlayerMoved (_, _, true)
+        | LostByResignation _ -> " "
+        | _ -> ""
 
-let outcomeToResult = function
-    | Draw (_, _, drawType) ->
-        $"1/2-1/2 {{%A{drawType}}}"
-    | LostByResignation (_, player) ->
-        match player with
-        | Black -> "1-0"
-        | White -> "0-1"
-    | WonByCheckmate (_, player) ->
-        match player with
-        | Black -> "# 1-0"
-        | White -> "# 0-1"
-    | PlayerMoved (_, _, true) -> "{Draw offered}"
-    | GameStarted _
-    | PlayerMoved (_, _, false) -> ""
+    let outcomeToResult = function
+        | Draw (_, _, drawType) ->
+            $"1/2-1/2 {{%A{drawType}}}"
+        | LostByResignation (_, player) ->
+            match player with
+            | Black -> "1-0"
+            | White -> "0-1"
+        | WonByCheckmate (_, player) ->
+            match player with
+            | Black -> "# 1-0"
+            | White -> "# 0-1"
+        | PlayerMoved (_, _, true) -> "{Draw offered}"
+        | GameStarted _
+        | PlayerMoved (_, _, false) -> ""
 
-let outcomeToResultSuffix outcome =
-    $"%s{outcomeToResultSeparator outcome}%s{outcomeToResult outcome}"
+    let private outcomeToResultSuffix outcome =
+        outcomeToResultSeparator outcome + outcomeToResult outcome
 
-let outcomeToSimpleResultSuffix outcome =
-    match outcome with
-    | Draw _ ->
-        " 1/2-1/2"
-    | LostByResignation (_, player) ->
-        match player with
-        | Black -> " 1-0"
-        | White -> " 0-1"
-    | WonByCheckmate (_, player) ->
-        match player with
-        | Black -> "# 1-0"
-        | White -> "# 0-1"
-    | _ ->
-        ""
+    let private outcomeToSimpleResultSuffix outcome =
+        match outcome with
+        | Draw _ ->
+            " 1/2-1/2"
+        | LostByResignation (_, player) ->
+            match player with
+            | Black -> " 1-0"
+            | White -> " 0-1"
+        | WonByCheckmate (_, player) ->
+            match player with
+            | Black -> "# 1-0"
+            | White -> "# 0-1"
+        | _ ->
+            ""
 
-let removeLastCheck (pgn: string) = pgn.TrimEnd('+')
+    let private removeLastCheck (pgn: string) = pgn.TrimEnd('+')
 
-let movesOutput (outcome: PlayerActionOutcome) =
-    let pgn = movesToPGN (PlayerActionOutcome.representation outcome).moves
-    match outcome with
-    | WonByCheckmate _ -> removeLastCheck pgn
-    | _ -> pgn
+    let movesToPGN (outcome: PlayerActionOutcome) =
+        let pgn =
+            outcome
+            |> PlayerActionOutcome.representation
+            |> ChessStateRepresentation.moves
+            |> movesToPGN
+        match outcome with
+        | WonByCheckmate _ -> removeLastCheck pgn
+        | _ -> pgn
 
-let outcomeToPGN outcome =
-    match outcome with
-    | GameStarted _ -> "{GameStarted}"
-    | _ -> (movesOutput outcome) + (outcomeToResultSuffix outcome)
+    let toCommentedPGN outcome =
+        match outcome with
+        | GameStarted _ -> "{GameStarted}"
+        | _ -> (movesToPGN outcome) + (outcomeToResultSuffix outcome)
 
-let outcomeToSimplePGN outcome = (movesOutput outcome) + (outcomeToSimpleResultSuffix outcome)
+    let toSimplePGN outcome = (movesToPGN outcome) + (outcomeToSimpleResultSuffix outcome)
 
 let boardToFEN (b: Square[,]) =
     let rowFolder (list, empties) square =
@@ -299,30 +320,32 @@ module ChessStateRepresentation =
         | White -> "w"
         | Black -> "b"
 
-        let castleStatusToFEN (white:CastlingRights) (black:CastlingRights) =
-            (if white.canCastleKingSide then "K" else "") +
-            (if white.canCastleQueenSide then "Q" else "") +
-            (if black.canCastleKingSide then "k" else "") +
-            (if black.canCastleKingSide then "q" else "")
+        let castleStatusToFEN rep =
+            (if rep |> ChessStateRepresentation.canWhiteCastleKingSide then "K" else "") +
+            (if rep |> ChessStateRepresentation.canWhiteCastleQueenSide then "Q" else "") +
+            (if rep |> ChessStateRepresentation.canBlackCastleKingSide then "k" else "") +
+            (if rep |> ChessStateRepresentation.canBlackCastleQueenSide then "q" else "")
 
         let enPassantTarget = function
         | Some coord -> coordToAlgebraic coord
         | None -> "-"
 
         [
-            colorToFEN this.playerInTurn
-            castleStatusToFEN this.whitePlayerCastlingRights this.blackPlayerCastlingRights
-            enPassantTarget this.pawnCapturableEnPassant
-            this.pliesWithoutPawnOrCapture.ToString()
-            this.numberOfMoves.ToString()
+            ChessStateRepresentation.playerInTurn >> colorToFEN
+            castleStatusToFEN
+            ChessStateRepresentation.pawnCapturableEnPassant >> enPassantTarget
+            ChessStateRepresentation.pliesWithoutPawnOrCapture >> fun x -> x.ToString()
+            ChessStateRepresentation.numberOfMoves >> fun x -> x.ToString()
         ]
+        |> List.apply this
         |> String.concat " "
 
     let toFEN (this: ChessStateRepresentation) =
         [
-            boardToFEN this.board
-            statusToFEN this
+            ChessStateRepresentation.board >> boardToFEN
+            statusToFEN
         ]
+        |> List.apply this
         |> String.concat " "
 
 module ChessState =

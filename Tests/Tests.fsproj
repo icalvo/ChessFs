@@ -11,7 +11,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="Assert.fs" />
     <Compile Include="NotationTests.fs" />
+    <Compile Include="ParsingTests.fs" />
     <Compile Include="UtilsTests.fs" />
     <Compile Include="Tests.fs" />
     <Compile Include="StateTests.fs" />

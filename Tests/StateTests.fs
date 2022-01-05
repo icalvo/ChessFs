@@ -13,23 +13,26 @@ module ``transitions`` =
         | Ok x -> fn x
         | Error x -> "Failure: " + x
 
-    let finalState (input: seq<string>) =
-        input
-        |> algebraicStringChessStateMachine
-        |> Seq.last
-        |> ResultDefault outcomeToResult
+    let finalState =
+        algebraicStringChessStateMachine
+        >> Seq.last
+        >> Result.map PlayerActionOutcome.outcomeToResult
+        >> Result.mapError (fun x -> "Failure: " + x)
+        >> Result.toValue
 
     let finalPGN (input: seq<string>) =
         input
         |> algebraicStringChessStateMachine
         |> Seq.last
-        |> ResultDefault outcomeToPGN
+        |> Result.map PlayerActionOutcome.toCommentedPGN
+        |> Result.mapError (fun x -> "Failure: " + x)
+        |> Result.toValue
 
     let outcomes =
         let statusToFEN = PlayerActionOutcome.representation >> ChessStateRepresentation.statusToFEN
 
         algebraicStringChessStateMachine
-        >> Seq.map (ResultDefault (fun x -> $"%s{outcomeToPGN x} {{%s{statusToFEN x}}}"))
+        >> Seq.map (ResultDefault (fun x -> $"%s{PlayerActionOutcome.toCommentedPGN x} {{%s{statusToFEN x}}}"))
         >> Seq.toList
 
     [<Fact>]
@@ -106,7 +109,7 @@ module ``transitions`` =
         |> finalPGN =! "1. e4 b6 2. Qh5 Ba6 3. Nc3 Bb7 4. Nb1 Bc8 5. Qa5 Ba6 6. Nc3 Bb7 7. Nb1 Bc8 8. Qb5 Ba6 9. Nc3 Bb7 10. Nb1 Bc8 11. Qc5 Ba6 12. Nc3 Bb7 13. Nb1 Bc8 14. Qd5 Ba6 15. Nc3 Bb7 16. Nb1 Bc8 17. Qe5 Ba6 18. Nc3 Bb7 19. Nb1 Bc8 20. Qf5 Ba6 21. Nc3 Bb7 22. Nb1 Bc8 23. Qg5 Ba6 24. Nc3 Bb7 25. Nb1 Bc8 26. Qh5 Ba6 27. Nc3 1/2-1/2 {FiftyMovements}"
 
     [<Fact>]
-    let ``75 moves, it's a draw``() =
+    let ``After 75 moves, it's a draw``() =
         let initial = [ "e4"; "b6" ] |> List.toSeq
         let queenMoves = [ "Qh5"; "Qa5"; "Qb5"; "Qc5"; "Qd5"; "Qe5"; "Qf5"; "Qg5" ]
         let blackKnightMoves = [ "Ba6"; "Nc3"; "Bb7"; "Nb1"; "Bc8" ]
@@ -114,8 +117,9 @@ module ``transitions`` =
         let cycle = queenMoves |> Seq.collect (fun queenMove -> queenMove::blackKnightMoves)
         let cycles = Seq.init 200 (fun _ -> cycle ) |> Seq.concat
 
-        Seq.concat [initial ; cycles ]
-        |> finalPGN =! "1. e4 b6 2. Qh5 Ba6 3. Nc3 Bb7 4. Nb1 Bc8 5. Qa5 Ba6 6. Nc3 Bb7 7. Nb1 Bc8 8. Qb5 Ba6 9. Nc3 Bb7 10. Nb1 Bc8 11. Qc5 Ba6 12. Nc3 Bb7 13. Nb1 Bc8 14. Qd5 Ba6 15. Nc3 Bb7 16. Nb1 Bc8 17. Qe5 Ba6 18. Nc3 Bb7 19. Nb1 Bc8 20. Qf5 Ba6 21. Nc3 Bb7 22. Nb1 Bc8 23. Qg5 Ba6 24. Nc3 Bb7 25. Nb1 Bc8 26. Qh5 Ba6 27. Nc3 Bb7 28. Nb1 Bc8 29. Qa5 Ba6 30. Nc3 Bb7 31. Nb1 Bc8 32. Qb5 Ba6 33. Nc3 Bb7 34. Nb1 Bc8 35. Qc5 Ba6 36. Nc3 Bb7 37. Nb1 Bc8 38. Qd5 Ba6 39. Nc3 Bb7 1/2-1/2 {SeventyFiveMovements}"
+        let expected = Seq.concat [initial ; cycles ] |> finalPGN
+        
+        Assert.Equal(expected, "1. e4 b6 2. Qh5 Ba6 3. Nc3 Bb7 4. Nb1 Bc8 5. Qa5 Ba6 6. Nc3 Bb7 7. Nb1 Bc8 8. Qb5 Ba6 9. Nc3 Bb7 10. Nb1 Bc8 11. Qc5 Ba6 12. Nc3 Bb7 13. Nb1 Bc8 14. Qd5 Ba6 15. Nc3 Bb7 16. Nb1 Bc8 17. Qe5 Ba6 18. Nc3 Bb7 19. Nb1 Bc8 20. Qf5 Ba6 21. Nc3 Bb7 22. Nb1 Bc8 23. Qg5 Ba6 24. Nc3 Bb7 25. Nb1 Bc8 26. Qh5 Ba6 27. Nc3 Bb7 28. Nb1 Bc8 29. Qa5 Ba6 30. Nc3 Bb7 31. Nb1 Bc8 32. Qb5 Ba6 33. Nc3 Bb7 34. Nb1 Bc8 35. Qc5 Ba6 36. Nc3 Bb7 37. Nb1 Bc8 38. Qd5 Ba6 39. Nc3 Bb7 1/2-1/2 {SeventyFiveMovements}")
 
     [<Fact>]
     let ``Scholar's mate FENs``() =

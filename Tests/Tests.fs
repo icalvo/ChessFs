@@ -1,6 +1,5 @@
 ﻿namespace ChessFs.Tests.Chess
 
-
 module ``Chess Tests`` =
     open Xunit
     open Swensen.Unquote
@@ -9,13 +8,14 @@ module ``Chess Tests`` =
     open Chess
     open Notation
     open ChessStateMachine
+    open Assert
 
     [<Fact>]
     let ``Directions tests``() =
         [A2;C8;H3] |> List.map Reach.UpRight  =! [Some B3; None; None]
 
     [<Fact>]
-    let ``Reach generator``() =
+    let ``Reach generation``() =
         let normalize = List.map Seq.toList >> List.map List.sort >> List.sort
         let normalize2 = List.map (fun (r, a) -> r |> Seq.toList |> List.sort, a) >> List.sort
 
@@ -48,28 +48,17 @@ module ``Chess Tests`` =
                     ]
         @>
 
-    let result4 = 
-        List.map plyToAlgebraic
-        >> List.sort
-
-    let result3 = 
-        List.map playerActionToAlgebraic
-        >> List.sort
-
-    let result = function
+    let availableActions = function
         | Ok x ->
             match x with
             | GameStarted (_, availableActions)
             | PlayerMoved (_, availableActions, _) ->
-                List.map executableActionToAlgebraic availableActions |> Set.ofList
-            | _ -> Set.empty
-        | Error msg -> Set.ofList ["Invalid board: " + msg]
-
+                List.map executableActionToAlgebraic availableActions
+            | _ -> List.empty
+        | Error msg -> ["Invalid board: " + msg]
 
     [<Fact>]
     let ``Promoting available actions``() =
-        let expectedActions = Set.ofList ["c8=B"; "c8=N"; "c8=Q"; "c8=R"]
-
         setupStandardChessPosition {
             playerInTurn = White
             pieces =
@@ -85,36 +74,32 @@ module ``Chess Tests`` =
             pliesWithoutPawnOrCapture = 0
             repeatableStates = []
             numberOfMoves = 1
-        } false
-        |> result
-        |> Set.intersect expectedActions
-        =! expectedActions
-
-    module Set =
-        let containsAll l set = List.forall (fun x -> Set.contains x set) l
+        }
+        |> availableActions
+        |> Assert.supersetOf ["c8=B"; "c8=N"; "c8=Q"; "c8=R"]
 
     [<Fact>]
     let ``Capture-promoting available actions``() =
-        test <@
-            setupStandardChessPosition {
-                playerInTurn = White
-                pieces =
-                    Map.ofList [
-                        C7, WhitePawn
-                        B8, BlackRook
-                        E1, WhiteKing
-                        H8, BlackKing
-                    ]
-                whitePlayerCastlingRights = noCastlingRights
-                blackPlayerCastlingRights = noCastlingRights
-                pawnCapturableEnPassant = None
-                plies = []
-                pliesWithoutPawnOrCapture = 0
-                repeatableStates = []
-                numberOfMoves = 1
-            } false
-            |> result |> Set.containsAll ["c8=B"; "c8=N"; "c8=Q"; "c8=R";
-            "cxb8=B"; "cxb8=N"; "cxb8=Q"; "cxb8=R"] @>
+        setupStandardChessPosition {
+            playerInTurn = White
+            pieces =
+                Map.ofList [
+                    C7, WhitePawn
+                    B8, BlackRook
+                    E1, WhiteKing
+                    H8, BlackKing
+                ]
+            whitePlayerCastlingRights = noCastlingRights
+            blackPlayerCastlingRights = noCastlingRights
+            pawnCapturableEnPassant = None
+            plies = []
+            pliesWithoutPawnOrCapture = 0
+            repeatableStates = []
+            numberOfMoves = 1
+        }
+        |> availableActions
+        |> Assert.supersetOf ["c8=B"; "c8=N"; "c8=Q"; "c8=R";
+        "cxb8=B"; "cxb8=N"; "cxb8=Q"; "cxb8=R"]
 
     [<Fact>]
     let ``Castling not possible when intermediate squares are in check``() =
@@ -135,8 +120,9 @@ module ``Chess Tests`` =
             pliesWithoutPawnOrCapture = 0
             repeatableStates = []
             numberOfMoves = 1
-        } false
-        |> result |> Set.contains "O-O" =! false
+        }
+        |> availableActions
+        |> Assert.doesNotContain "O-O"
 
     [<Fact>]
     let ``Castling possible when rook attacked``() =
@@ -157,8 +143,9 @@ module ``Chess Tests`` =
                 pliesWithoutPawnOrCapture = 0
                 repeatableStates = []
                 numberOfMoves = 1
-            } false
-            |> result |> Set.contains "O-O" =! true
+            }
+            |> availableActions
+            |> Assert.contains "O-O"
 
     [<Fact>]
     let ``King cannot move to check``() =
@@ -177,27 +164,37 @@ module ``Chess Tests`` =
             pliesWithoutPawnOrCapture = 0
             repeatableStates = []
             numberOfMoves = 1
-        } false
-        |> result =! Set.ofList [":r"; "Kd1"; "Kd1:d"; "Kd2"; "Kd2:d"; "Ke2"; "Ke2:d" ]
+        }
+        |> availableActions
+        |> Assert.doesNotContain "Kf1"
 
-    let internal gameStateAfterE4 = algebraicStringChessIgnoringStateMachine ["e4"] |> Seq.last |> PlayerActionOutcome.representation
+    open ChessStateRepresentation
+    open PlayerActionOutcome
 
-    let ResultDefault fn =
-        function
-        | Ok x -> fn x
-        | Error x -> "Failure"
-
-    let lastFEN moves =
-        moves
-        |> algebraicStringChessStateMachine
+    let internal gameStateAfterE4 =
+        ["e4"]
+        |> algebraicStringChessIgnoringStateMachine
         |> Seq.last
-        |> ResultDefault (PlayerActionOutcome.representation >> ChessStateRepresentation.toFEN)
+        |> PlayerActionOutcome.representation
+
+    let internal boardAfter =
+        algebraicStringChessIgnoringStateMachine
+        >> Seq.last
+        >> representation
+        >> board
+
+    let lastRepToString fn =
+        algebraicStringChessStateMachine
+        >> Seq.last
+        >> Result.toValue2 (representation >> fn) "Failure"
 
     [<Fact>]
     let ``FEN tests``() =
-        boardToFEN (representation initialGameState).board =! "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"
-        boardToFEN gameStateAfterE4.board =! "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR"
-        [ ] |> lastFEN =! "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-        [ "e4" ] |> lastFEN =! "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
-        [ "e4"; "e5" ] |> lastFEN =! "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2"
+        [ ] |> boardAfter |> boardToFEN =!
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"
+        [ "e4" ] |> boardAfter |> boardToFEN =!
+            "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR"
+        [ ] |> lastRepToString toFEN =! "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+        [ "e4" ] |> lastRepToString toFEN =! "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
+        [ "e4"; "e5" ] |> lastRepToString toFEN =! "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2"
 

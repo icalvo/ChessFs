@@ -1,6 +1,5 @@
 ﻿module ChessGameConsole
 
-open System
 open Chess
 open Notation
 open Output
@@ -10,15 +9,26 @@ let isFinish = function
     | Exiting -> true
     | _ -> false
 
+let printHelp () =
+    printfn "You must input one of the actions in the list. These are the legal chess actions which are:
+:r --> Resign
+:a --> Accept a draw offer
+CHESSMOVE (e.g. Kd4) --> Play that move
+CHESSMOVE:d (e.g. g4:d) --> Play that move and offer a draw
+
+Once a move is played, the board will flip and you will be asked for an action for the opponent player.
+Also, you can enter 'h' to show this help and 'q' to quit the game."
+
 let chessConsoleTransition game =
     let actions = PlayerActionOutcome.actions
     let execute = ExecutableAction.executefn
     let normalizeAction action = (executableActionToAlgebraic action).ToLowerInvariant()
-    gameConsoleTransition2 game actions execute normalizeAction printOutcome
+    let normalizeInput (x: string) = x.ToLowerInvariant()
+    gameConsoleTransition game actions execute normalizeAction normalizeInput printOutcome printHelp
 
-
+open StateMachine
 let chessConsoleStateMachine game input =
     let initialState = AskingAction game
 
-    StateMachine.stateMachine (chessConsoleTransition game) isFinish initialState input
+    stateMachine (chessConsoleTransition game) isFinish initialState input
     |> Seq.toArray

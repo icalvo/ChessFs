@@ -9,7 +9,6 @@ let main argv =
     printfn "All you see in each ply is provided by the engine: the board state, the list of possible moves and the outcome of the former move."
 
     let game = newStandardChessGame
-    printOutcome game
     let commandLineInput = argv |> Seq.map (fun x -> lazy x);
     let input = commandLineInput |> Seq.append consoleInput
 

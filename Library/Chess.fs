@@ -26,7 +26,7 @@ type PlyType =
     | MoveAndPromoteType
     | CaptureAndPromoteType
 
-type Reach = seq<File * Rank> list
+type Reach = seq<Coordinate> list
 
 module Reach =
     // Directions
@@ -339,6 +339,10 @@ type CastlingRights = {
     canCastleKingSide: bool
     canCastleQueenSide: bool
 }
+
+module CastlingRights =
+    let canCastleKingSide (cr: CastlingRights) = cr.canCastleKingSide
+    let canCastleQueenSide (cr: CastlingRights) = cr.canCastleQueenSide
 
 let bothWaysCastlingRights = { canCastleKingSide = true; canCastleQueenSide = true }
 let noCastlingRights = { canCastleKingSide = false; canCastleQueenSide = false }
@@ -655,6 +659,21 @@ type ChessStateRepresentation = {
     numberOfMoves: int
 }
 
+module ChessStateRepresentation =
+    let board (rep: ChessStateRepresentation) = rep.board
+    let playerInTurn (rep: ChessStateRepresentation) = rep.playerInTurn
+    let isCheck (rep: ChessStateRepresentation) = rep.isCheck
+    let whitePlayerCastlingRights (rep: ChessStateRepresentation) = rep.whitePlayerCastlingRights
+    let canWhiteCastleKingSide = whitePlayerCastlingRights >> CastlingRights.canCastleKingSide
+    let canWhiteCastleQueenSide = whitePlayerCastlingRights >> CastlingRights.canCastleQueenSide
+    let blackPlayerCastlingRights (rep: ChessStateRepresentation) = rep.blackPlayerCastlingRights
+    let canBlackCastleKingSide = blackPlayerCastlingRights >> CastlingRights.canCastleKingSide
+    let canBlackCastleQueenSide = blackPlayerCastlingRights >> CastlingRights.canCastleQueenSide
+    let pawnCapturableEnPassant (rep: ChessStateRepresentation) = rep.pawnCapturableEnPassant
+    let pliesWithoutPawnOrCapture (rep: ChessStateRepresentation) = rep.pliesWithoutPawnOrCapture
+    let moves (rep: ChessStateRepresentation) = rep.moves
+    let numberOfMoves (rep: ChessStateRepresentation) = rep.numberOfMoves
+
 type DrawType =
     | Agreement
     | Stalemate
@@ -748,7 +767,7 @@ and internal executePlayerAction (gameState: ChessState) (playerAction: PlayerAc
     match playerAction with
     | PlayerAction.MovePiece (ply, restOfPlies, drawOffer) ->
         let newGameState = nextGameState ply restOfPlies drawOffer gameState
-        getOutcomeFromNewBoard newGameState drawOffer
+        getOutcomeFromNewBoard newGameState
     | PlayerAction.Resign ->
         let repr = representation gameState
         LostByResignation (repr, (opponent gameState.playerInTurn))
@@ -756,8 +775,9 @@ and internal executePlayerAction (gameState: ChessState) (playerAction: PlayerAc
         let repr = representation gameState
         Draw (repr, gameState.playerInTurn, Agreement)
 
-and internal getOutcomeFromNewBoard (gameState: ChessState) drawOffer =
+and internal getOutcomeFromNewBoard (gameState: ChessState) =
     let repr = representation gameState
+    let drawOffer = gameState.plies |> List.tryHead |> Option.map (fun x -> x.drawOffer) |> Option.defaultTo false
 
     if drawOffer && gameState.pliesWithoutPawnOrCapture >= 50 then
         Draw (repr, gameState.playerInTurn, FiftyMovements)
@@ -842,7 +862,7 @@ let initialGameState =
         numberOfMoves = 1
     }
 
-let newStandardChessGame = getOutcomeFromNewBoard initialGameState false
+let newStandardChessGame = getOutcomeFromNewBoard initialGameState
 
 let nullValidate = Ok
 
@@ -854,11 +874,6 @@ module Result =
     let ofBool errorData = function
     | true -> Ok ()
     | false -> Error errorData
-
-let (>=>) f1 f2 arg =
-  match f1 arg with
-  | Ok data -> f2 data
-  | Error e -> Error e
 
 let validateStandardChess (gameState: ChessState) =
     let invertedPieces (gameState: ChessState) =
@@ -901,10 +916,10 @@ let validateStandardChess (gameState: ChessState) =
         Ok gameState
 
 
-let setupChessPosition gameState validate drawOffer =
+let setupChessPosition gameState validate =
     gameState
     |> validate
-    |> Result.map (fun x -> getOutcomeFromNewBoard x drawOffer)
+    |> Result.map getOutcomeFromNewBoard
 
-let setupStandardChessPosition gameState drawOffer =
-    setupChessPosition gameState validateStandardChess drawOffer
+let setupStandardChessPosition gameState =
+    setupChessPosition gameState validateStandardChess

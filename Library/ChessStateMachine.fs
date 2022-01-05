@@ -17,11 +17,13 @@ let algebraicChessStateMachine translateInput input = chessStateMachine (executa
 
 let algebraicStringChessStateMachine input = algebraicChessStateMachine id input
 
+let algebraicStringChessActionsTransitionIgnoring =
+    actionsTransitionIgnoring PlayerActionOutcome.actions (executableActionToAlgebraic >> toLowerInvariant) toLowerInvariant ExecutableAction.executefn
 
-let chessIgnoringStateMachineFrom initialState translateAction normalizeInput input =
+let chessIgnoringStateMachineFrom initialState normalizeAction normalizeInput input =
     let actions = PlayerActionOutcome.actions
     let execute = ExecutableAction.executefn
-    stateActionsIgnoringStateMachine initialState actions translateAction normalizeInput execute input
+    stateActionsIgnoringStateMachine initialState actions normalizeAction normalizeInput execute input
 
 let chessIgnoringStateMachine translateAction = chessIgnoringStateMachineFrom newStandardChessGame translateAction
 

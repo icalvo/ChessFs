@@ -8,6 +8,18 @@
             |> Option.map fn 
             |> defaultTo []
 
+    module Result =
+        let defaultTo errorValue = function
+        | Ok x -> x
+        | Error _ -> errorValue
+
+        let toValue = function
+        | Ok x -> x
+        | Error x -> x
+
+        let toValue2 fn errorValue =
+            Result.map fn >> defaultTo errorValue
+
     module Seq =
         let pipe action = Seq.map (fun x -> action x; x)
         let debug name = pipe (fun x -> if Configuration.debug then printfn $"%s{name} yields %A{x}")
@@ -55,6 +67,8 @@
         let debug name = pipe (printfn "%s yields %A" name)
         let apply arg fnlist = fnlist |> List.map (fun fn -> fn arg)
         let filterNones (s: 'a option list): 'a list = List.choose id s
+        let repeat value n = List.init n (fun _ -> value)
+        let repeatrev n value = List.init n (fun _ -> value)
 
     let (>?>) f1 f2 = f1 >> Option.bind f2
 
