@@ -5,10 +5,9 @@ module ``Chess Tests`` =
     open Swensen.Unquote
     open Utils
     open CoreTypes
-    open Chess
+    open Engine
     open Notation
     open ChessStateMachine
-    open Assert
 
     [<Fact>]
     let ``Directions tests``() =
@@ -56,10 +55,10 @@ module ``Chess Tests`` =
                 List.map executableActionToAlgebraic availableActions
             | _ -> List.empty
         | Error msg -> ["Invalid board: " + msg]
-
+ 
     [<Fact>]
     let ``Promoting available actions``() =
-        setupStandardChessPosition {
+        {
             playerInTurn = White
             pieces =
                 Map.ofList [
@@ -70,17 +69,17 @@ module ``Chess Tests`` =
             whitePlayerCastlingRights = noCastlingRights
             blackPlayerCastlingRights = noCastlingRights
             pawnCapturableEnPassant = None
-            plies = []
             pliesWithoutPawnOrCapture = 0
-            repeatableStates = []
             numberOfMoves = 1
         }
+        |> ChessState.fromRaw
+        |> Result.bind setupStandardChessPosition
         |> availableActions
         |> Assert.supersetOf ["c8=B"; "c8=N"; "c8=Q"; "c8=R"]
 
     [<Fact>]
     let ``Capture-promoting available actions``() =
-        setupStandardChessPosition {
+        {
             playerInTurn = White
             pieces =
                 Map.ofList [
@@ -92,18 +91,18 @@ module ``Chess Tests`` =
             whitePlayerCastlingRights = noCastlingRights
             blackPlayerCastlingRights = noCastlingRights
             pawnCapturableEnPassant = None
-            plies = []
             pliesWithoutPawnOrCapture = 0
-            repeatableStates = []
             numberOfMoves = 1
         }
+        |> ChessState.fromRaw
+        |> Result.bind setupStandardChessPosition
         |> availableActions
         |> Assert.supersetOf ["c8=B"; "c8=N"; "c8=Q"; "c8=R";
         "cxb8=B"; "cxb8=N"; "cxb8=Q"; "cxb8=R"]
 
     [<Fact>]
     let ``Castling not possible when intermediate squares are in check``() =
-        setupStandardChessPosition {
+        {
             playerInTurn = White
             pieces =
                 Map.ofList [
@@ -116,40 +115,40 @@ module ``Chess Tests`` =
             whitePlayerCastlingRights = { canCastleKingSide = true; canCastleQueenSide = false }
             blackPlayerCastlingRights = noCastlingRights
             pawnCapturableEnPassant = None
-            plies = []
             pliesWithoutPawnOrCapture = 0
-            repeatableStates = []
             numberOfMoves = 1
         }
+        |> ChessState.fromRaw
+        |> Result.bind setupStandardChessPosition
         |> availableActions
         |> Assert.doesNotContain "O-O"
 
     [<Fact>]
     let ``Castling possible when rook attacked``() =
-            setupStandardChessPosition {
-                playerInTurn = White
-                pieces =
-                    Map.ofList [
-                        E1, WhiteKing
-                        H1, WhiteRook
-                        A1, WhiteRook
-                        H8, BlackRook
-                        E3, BlackKing
-                    ]
-                whitePlayerCastlingRights = { canCastleKingSide = true; canCastleQueenSide = false }
-                blackPlayerCastlingRights = noCastlingRights
-                pawnCapturableEnPassant = None
-                plies = []
-                pliesWithoutPawnOrCapture = 0
-                repeatableStates = []
-                numberOfMoves = 1
-            }
-            |> availableActions
-            |> Assert.contains "O-O"
+        {
+            playerInTurn = White
+            pieces =
+                Map.ofList [
+                    E1, WhiteKing
+                    H1, WhiteRook
+                    A1, WhiteRook
+                    H8, BlackRook
+                    E3, BlackKing
+                ]
+            whitePlayerCastlingRights = { canCastleKingSide = true; canCastleQueenSide = false }
+            blackPlayerCastlingRights = noCastlingRights
+            pawnCapturableEnPassant = None
+            pliesWithoutPawnOrCapture = 0
+            numberOfMoves = 1
+        }
+        |> ChessState.fromRaw
+        |> Result.bind setupStandardChessPosition
+        |> availableActions
+        |> Assert.contains "O-O"
 
     [<Fact>]
     let ``King cannot move to check``() =
-        setupStandardChessPosition {
+        {
             playerInTurn = White
             pieces =
                 Map.ofList [
@@ -160,33 +159,32 @@ module ``Chess Tests`` =
             whitePlayerCastlingRights = noCastlingRights
             blackPlayerCastlingRights = noCastlingRights
             pawnCapturableEnPassant = None
-            plies = []
             pliesWithoutPawnOrCapture = 0
-            repeatableStates = []
             numberOfMoves = 1
         }
+        |> ChessState.fromRaw
+        |> Result.bind setupStandardChessPosition
         |> availableActions
         |> Assert.doesNotContain "Kf1"
 
-    open ChessStateRepresentation
-    open PlayerActionOutcome
+    open ChessState
 
     let internal gameStateAfterE4 =
         ["e4"]
         |> algebraicStringChessIgnoringStateMachine
         |> Seq.last
-        |> PlayerActionOutcome.representation
+        |> PlayerActionOutcome.state
 
     let internal boardAfter =
         algebraicStringChessIgnoringStateMachine
         >> Seq.last
-        >> representation
+        >> PlayerActionOutcome.state
         >> board
 
     let lastRepToString fn =
         algebraicStringChessStateMachine
         >> Seq.last
-        >> Result.toValue2 (representation >> fn) "Failure"
+        >> Result.toValue2 (PlayerActionOutcome.state >> fn) "Failure"
 
     [<Fact>]
     let ``FEN tests``() =

@@ -8,8 +8,8 @@ module ``Option`` =
 
     [<Fact>]
     let ``defaultTo``() =
-        None |> Option.defaultTo 34 =! 34
-        Some 127 |> Option.defaultTo 34 =! 127
+        None |> Option.defaultValue 34 =! 34
+        Some 127 |> Option.defaultValue 34 =! 127
 
     [<Fact>]
     let ``mapList``() =

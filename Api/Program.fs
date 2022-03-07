@@ -1,59 +1,92 @@
-﻿open System
-open System.Threading
+﻿namespace ChessFs.Api
 
-open FSharp.Json
-open FParsec
-open Suave
-open Suave.Filters
-open Suave.Operators
-open Suave.Successful
-open Suave.RequestErrors
-open Chess
-open ChessStateMachine
-open ChessParsing
-open YoLo.Result.Operators
+open Suave.Web
+open ChessFs.Api.Db
+open ChessFs.Api.Rest
 
+module Main =
+    [<EntryPoint>]
+    let main argv =
+        let chessWebPart = rest "chess" {
+            Create = GameRepository.createGame
+            Play = GameRepository.play
+            GetById = GameRepository.getGame
+            ItExists = GameRepository.itExists
+        }
+        startWebServer defaultConfig chessWebPart
+        0 // return an integer exit code
 
-module Result =
-    let toValue fnOk fnError = function | Result.Ok x -> fnOk x | Result.Error x -> fnError x
+//[<EntryPoint>]
+//let main argv = 
+//    let cts = new CancellationTokenSource()
+//    let conf = { defaultConfig with cancellationToken = cts.Token }
 
-[<EntryPoint>]
-let main argv = 
-    let cts = new CancellationTokenSource()
-    let conf = { defaultConfig with cancellationToken = cts.Token }
+//    let rawBody (req: HttpRequest) = req.rawForm
+//    let toUTF8 (str: byte []) = System.Text.Encoding.UTF8.GetString(str)
 
-    let rawBody (req: HttpRequest) = req.rawForm
-    let toUTF8 (str: byte []) = System.Text.Encoding.UTF8.GetString(str)
+//    let body = rawBody >> toUTF8
 
-    let body = rawBody >> toUTF8
+//    let transition input pos = algebraicStringChessActionsTransitionIgnoring pos input
 
-    let transition input pos = algebraicStringChessActionsTransitionIgnoring pos input
+//    let (>>>) f1 (fnOk, fnErr) = f1 |> Result.toValue fnOk fnErr
 
-    let (>>>) f1 (fnOk, fnErr) = f1 |> Result.toValue fnOk fnErr
+//    let FENofUrl = String.replace "|" "/" >> String.replace "_" " "
+//    let FENtoUrl = String.replace "/" "|" >> String.replace " " "_"
 
-    let aa (fen, move) =
-        let stateRep =
-            match parseFEN fen with
-            | Success (r, _, _) -> Result.Ok r
-            | Failure (f, _, _) -> Result.Error f
+//    let cc (gameId: string) move request =
+//        let stateRep =
+//            match gameId |> (fun x -> Guid.Parse(x)) |> GameRepository.get with
+//            | Some state -> Result.Ok state
+//            | None -> Result.Error $"Game {id} is not found"
 
-        stateRep
-        >>= setupStandardChessPosition
-        >!> (transition move)
-        >!> Json.serialize
-        |> Result.toValue OK BAD_REQUEST
+//        let output outcome =
+//            let fen =
+//                outcome
+//                |> PlayerActionOutcome.state
+//                |> ChessState.toFEN
+//                |> FENtoUrl
 
-    let app = choose [
-            GET >=> path "/chess" >=> OK (Json.serialize (representation initialGameState))
-            GET >=> pathScan "/chess/%s/%s" aa
-        ]
+//            let moves =
+//                outcome
+//                |> PlayerActionOutcome.actions
+//                |> List.map executableActionToAlgebraic
+//                |> List.map (fun move -> $"http://{request.rawHost}/chess/{fen}/{move}")
 
-    let listening, server = startWebServerAsync conf app
+//            { fen = $"http://{request.rawHost}/chess/{fen}"; moves = moves }
+
+//        let tran = match move with | Some m -> transition m | None -> id
+//        stateRep
+//        >>= setupStandardChessPosition
+//        >!> tran
+//        >!> output
+//        >!> Json.serialize
+//        |> Result.toValue OK BAD_REQUEST
+
+//    let aa (fen, move) (request: HttpRequest) =
+//        cc fen (Some move) request
+
+//    let bb gameId (request: HttpRequest) =
+//        cc gameId None request
+
+//    let createGame() =
+//        let gameId = GameRepository.create.ToString()
+
+//        OK ("{ \"id\": \"" + gameId + "\" }")
+
+//    let app =
+//        choose [
+//            POST >=> path "/chess/" >=> createGame()
+//            GET >=> pathScan "/chess/%s/%s" (aa >> request)
+//            GET >=> pathScan "/chess/%s/fen" (bb >> request)
+//        ]
+//        >=> setHeader "Content-Type" "application/json"
+
+//    let listening, server = startWebServerAsync conf app
     
-    Async.Start(server, cts.Token)
-    printfn "Make requests now"
-    Console.ReadKey true |> ignore
+//    Async.Start(server, cts.Token)
+//    printfn "Make requests now"
+//    Console.ReadKey true |> ignore
     
-    cts.Cancel()
+//    cts.Cancel()
 
-    0 // return an integer exit code
+//    0 // return an integer exit code

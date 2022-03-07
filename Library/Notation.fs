@@ -1,7 +1,7 @@
 ﻿module Notation
 
 open CoreTypes
-open Chess
+open Engine
 open Utils
 
 // STRING REPRESENTATIONS
@@ -122,7 +122,7 @@ let squareWithActions capList square =
 
     let squareActionToString =
         square
-        |> Square.pieceCoord
+        |> Square.coordinate
         |> capabilityAt
         |> Option.map fst
         |> Option.map actionToString
@@ -234,7 +234,7 @@ module PlayerActionOutcome =
         | _ -> ""
 
     let outcomeToResult = function
-        | Draw (_, _, drawType) ->
+        | Draw (_, drawType) ->
             $"1/2-1/2 {{%A{drawType}}}"
         | LostByResignation (_, player) ->
             match player with
@@ -271,8 +271,8 @@ module PlayerActionOutcome =
     let movesToPGN (outcome: PlayerActionOutcome) =
         let pgn =
             outcome
-            |> PlayerActionOutcome.representation
-            |> ChessStateRepresentation.moves
+            |> PlayerActionOutcome.state
+            |> ChessState.moves
             |> movesToPGN
         match outcome with
         | WonByCheckmate _ -> removeLastCheck pgn
@@ -314,40 +314,59 @@ let boardToFEN (b: Square[,]) =
     |> String.concat "/"
 
 
-module ChessStateRepresentation =
-    let statusToFEN (this: ChessStateRepresentation) =
+module ChessState =
+    let fromRaw (raw: RawChessState) =
+        {
+            pieces = raw.pieces
+            playerInTurn = raw.playerInTurn
+            whitePlayerCastlingRights = raw.whitePlayerCastlingRights
+            blackPlayerCastlingRights = raw.blackPlayerCastlingRights
+            pawnCapturableEnPassant = raw.pawnCapturableEnPassant
+            pliesWithoutPawnOrCapture = raw.pliesWithoutPawnOrCapture
+            plies = []
+            numberOfMoves = raw.numberOfMoves
+            repeatableStates = []
+        }
+        |> validateStandardChess
+
+    let toRaw (chessState: ChessState) = {
+        pieces = chessState.pieces
+        playerInTurn = chessState.playerInTurn
+        whitePlayerCastlingRights = chessState.whitePlayerCastlingRights
+        blackPlayerCastlingRights = chessState.blackPlayerCastlingRights
+        pawnCapturableEnPassant = chessState.pawnCapturableEnPassant
+        pliesWithoutPawnOrCapture = chessState.pliesWithoutPawnOrCapture
+        numberOfMoves = chessState.numberOfMoves
+    }
+    let statusToFEN (this: ChessState) =
         let colorToFEN = function
         | White -> "w"
         | Black -> "b"
 
         let castleStatusToFEN rep =
-            (if rep |> ChessStateRepresentation.canWhiteCastleKingSide then "K" else "") +
-            (if rep |> ChessStateRepresentation.canWhiteCastleQueenSide then "Q" else "") +
-            (if rep |> ChessStateRepresentation.canBlackCastleKingSide then "k" else "") +
-            (if rep |> ChessStateRepresentation.canBlackCastleQueenSide then "q" else "")
+            (if rep |> ChessState.canWhiteCastleKingSide then "K" else "") +
+            (if rep |> ChessState.canWhiteCastleQueenSide then "Q" else "") +
+            (if rep |> ChessState.canBlackCastleKingSide then "k" else "") +
+            (if rep |> ChessState.canBlackCastleQueenSide then "q" else "")
 
         let enPassantTarget = function
         | Some coord -> coordToAlgebraic coord
         | None -> "-"
 
         [
-            ChessStateRepresentation.playerInTurn >> colorToFEN
+            ChessState.playerInTurn >> colorToFEN
             castleStatusToFEN
-            ChessStateRepresentation.pawnCapturableEnPassant >> enPassantTarget
-            ChessStateRepresentation.pliesWithoutPawnOrCapture >> fun x -> x.ToString()
-            ChessStateRepresentation.numberOfMoves >> fun x -> x.ToString()
+            ChessState.pawnCapturableEnPassant >> enPassantTarget
+            ChessState.pliesWithoutPawnOrCapture >> fun x -> x.ToString()
+            ChessState.numberOfMoves >> fun x -> x.ToString()
         ]
         |> List.apply this
         |> String.concat " "
 
-    let toFEN (this: ChessStateRepresentation) =
+    let toFEN (this: ChessState) =
         [
-            ChessStateRepresentation.board >> boardToFEN
+            ChessState.board >> boardToFEN
             statusToFEN
         ]
         |> List.apply this
         |> String.concat " "
-
-module ChessState =
-    let internal toFEN = representation >> ChessStateRepresentation.toFEN
-    let internal statusToFEN = representation >> ChessStateRepresentation.statusToFEN

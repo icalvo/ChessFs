@@ -5,7 +5,7 @@ module ``Notation Tests`` =
     open Xunit
     open Swensen.Unquote
     open CoreTypes
-    open Chess
+    open Engine
     open Notation
 
     [<Fact>]

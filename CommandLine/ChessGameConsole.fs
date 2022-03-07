@@ -1,6 +1,6 @@
 ﻿module ChessGameConsole
 
-open Chess
+open Engine
 open Notation
 open Output
 open GameConsole

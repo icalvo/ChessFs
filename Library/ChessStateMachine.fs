@@ -1,7 +1,7 @@
 ﻿module ChessStateMachine
 
 open StateActions
-open Chess
+open Engine
 open Notation
 
 let chessStateMachineFrom initialState translateAction normalizeInput input =
@@ -30,3 +30,25 @@ let chessIgnoringStateMachine translateAction = chessIgnoringStateMachineFrom ne
 let algebraicChessIgnoringStateMachine translateInput input = chessIgnoringStateMachine (executableActionToAlgebraic >> toLowerInvariant) (translateInput >> toLowerInvariant) input
 
 let algebraicStringChessIgnoringStateMachine input = algebraicChessIgnoringStateMachine id input
+
+let chessFailingStateMachineFrom initialState normalizeAction normalizeInput input =
+    let actions = PlayerActionOutcome.actions
+    let execute = ExecutableAction.executefn
+    stateActionsFailingStateMachine initialState actions normalizeAction normalizeInput execute input
+
+let chessFailingStateMachine translateAction = chessFailingStateMachineFrom newStandardChessGame translateAction
+
+let algebraicChessFailingStateMachine translateInput input = chessFailingStateMachine (executableActionToAlgebraic >> toLowerInvariant) (translateInput >> toLowerInvariant) input
+
+let algebraicStringChessFailingStateMachine input = algebraicChessFailingStateMachine id input
+
+module ChessState =
+    let stateAfter: (string seq -> ChessState) =
+        algebraicStringChessIgnoringStateMachine
+        >> Seq.last
+        >> PlayerActionOutcome.state
+
+    let stateAfterFailing: (string seq -> Result<ChessState, string>) =
+        algebraicStringChessFailingStateMachine
+        >> Seq.last
+        >> Result.map PlayerActionOutcome.state

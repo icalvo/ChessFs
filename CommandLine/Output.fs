@@ -2,7 +2,7 @@
 
 open System
 open CoreTypes
-open Chess
+open Engine
 open Microsoft.FSharp.Core.Printf
 open Utils
 open Notation
@@ -12,15 +12,15 @@ open Notation
 let cprintf fc bc fmt = 
     kprintf
         (fun s ->
-            let oldfc = Console.ForegroundColor
-            let oldbc = Console.BackgroundColor
+            let oldForegroundColor = Console.ForegroundColor
+            let oldBackgroundColor = Console.BackgroundColor
             try
                 Console.ForegroundColor <- fc;
                 Console.BackgroundColor <- bc;
                 Console.Write s
             finally
-                Console.ForegroundColor <- oldfc;
-                Console.BackgroundColor <- oldbc)
+                Console.ForegroundColor <- oldForegroundColor;
+                Console.BackgroundColor <- oldBackgroundColor)
         fmt
 
 let cprintfn fc bc fmt =
@@ -40,7 +40,7 @@ let cellForeground =
     | EmptySquare _ -> ConsoleColor.Black
 
 let printSquare sq =
-    cprintf (cellForeground sq) (cellBackground (Square.pieceCoord sq)) $"%s{squareToString sq}"
+    cprintf (cellForeground sq) (cellBackground (Square.coordinate sq)) $"%s{squareToString sq}"
 
 let printBoard (b: Square[,]) color =
     let colorFunc =
@@ -87,20 +87,20 @@ let printActions =
 let printMoves =
     movesToPGN >> printfn "Moves: %s"
  
-let printOutcome (outcome: PlayerActionOutcome) =
-    let repr = PlayerActionOutcome.representation outcome
-    let board = ChessStateRepresentation.board repr
-    let playerInTurn = ChessStateRepresentation.playerInTurn repr
+let printOutcome outcome =
+    let state = PlayerActionOutcome.state outcome
+    let board = ChessState.board state
+    let playerInTurn = ChessState.playerInTurn state
 
     printBoard board playerInTurn
 
     outcome |> PlayerActionOutcome.toSimplePGN |> printfn "%s"
-    if ChessStateRepresentation.isCheck repr then
+    if ChessState.isCheck state then
         printfn "CHECK!"
     printfn $"%A{playerInTurn} to move"
     printfn ""
     match outcome with
-    | Draw (_, _, drawType) -> 
+    | Draw (_, drawType) -> 
         printfn $"GAME OVER - Draw by %A{drawType}"
         printfn ""
     | LostByResignation (_, player) -> 

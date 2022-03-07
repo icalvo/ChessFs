@@ -4,6 +4,8 @@
     <TargetFramework>net6.0</TargetFramework>
 
     <IsPackable>false</IsPackable>
+
+    <LangVersion>6.0</LangVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -15,11 +17,12 @@
     <Compile Include="NotationTests.fs" />
     <Compile Include="ParsingTests.fs" />
     <Compile Include="UtilsTests.fs" />
-    <Compile Include="Tests.fs" />
+    <Compile Include="ChessTests.fs" />
     <Compile Include="StateTests.fs" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="FParsec" Version="1.1.1" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.0.0" />
     <PackageReference Include="Unquote" Version="6.1.0" />
     <PackageReference Include="xunit" Version="2.4.1" />

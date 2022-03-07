@@ -4,7 +4,7 @@ module ``transitions`` =
     open Xunit
     open Swensen.Unquote
     open Utils
-    open Chess
+    open Engine
     open Notation
     open ChessStateMachine
 
@@ -29,7 +29,7 @@ module ``transitions`` =
         |> Result.toValue
 
     let outcomes =
-        let statusToFEN = PlayerActionOutcome.representation >> ChessStateRepresentation.statusToFEN
+        let statusToFEN = PlayerActionOutcome.state >> ChessState.statusToFEN
 
         algebraicStringChessStateMachine
         >> Seq.map (ResultDefault (fun x -> $"%s{PlayerActionOutcome.toCommentedPGN x} {{%s{statusToFEN x}}}"))
@@ -123,7 +123,7 @@ module ``transitions`` =
 
     [<Fact>]
     let ``Scholar's mate FENs``() =
-        let toFEN = PlayerActionOutcome.representation >> ChessStateRepresentation.toFEN
+        let toFEN = PlayerActionOutcome.state >> ChessState.toFEN
 
         [ "e4"; "e5"; "Bc4"; "Nc6"; "Qh5"; "Nf6"; "Qxf7" ]
         |> algebraicStringChessStateMachine

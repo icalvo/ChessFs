@@ -1,12 +1,11 @@
 ﻿module Utils
 
     module Option =
-        let defaultTo defValue opt = defaultArg opt defValue
         let pipe action = Option.map (fun x -> action x; x)
         let mapList fn opt =
             opt
             |> Option.map fn 
-            |> defaultTo []
+            |> Option.defaultValue []
 
     module Result =
         let defaultTo errorValue = function

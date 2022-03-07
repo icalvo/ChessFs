@@ -66,11 +66,9 @@ with
 
 type Coordinate = File * Rank
 
-let file ((f, _):Coordinate) =
-    f
+let file ((f, _):Coordinate) = f
 
-let rank ((_, r):Coordinate) =
-    r
+let rank ((_, r):Coordinate) = r
 
 let A1 = (A, R1)
 let A2 = (A, R2)
@@ -147,8 +145,6 @@ module Rank =
         | f, R6 -> Some (f, R7)
         | f, R7 -> Some (f, R8)
         | _, R8 -> None
-
-
 
     let prev: Coordinate -> Coordinate option = function
         | _, R1 -> None

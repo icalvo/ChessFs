@@ -1,4 +1,5 @@
-﻿module Chess
+﻿module Engine
+
 open Utils
 open CoreTypes
 
@@ -39,28 +40,28 @@ module Reach =
     let Left      = File.prev
     let UpLeft    = File.prev >?> Rank.next
 
-    let bishopReaches coord: Reach =
+    let bishopReaches coordinate: Reach =
         [ UpRight; DownRight; DownLeft; UpLeft ]
         |> List.map Seq.unfoldSimple
-        |> List.apply coord
+        |> List.apply coordinate
 
-    let rookReaches coord: Reach =
+    let rookReaches coordinate: Reach =
         [ Up; Right; Down; Left ]
         |> List.map Seq.unfoldSimple
-        |> List.apply coord
+        |> List.apply coordinate
 
-    let queenReaches coord: Reach =
+    let queenReaches coordinate: Reach =
         [ bishopReaches; rookReaches ]
-        |> List.apply coord
+        |> List.apply coordinate
         |> List.concat
 
-    let kingReaches coord: Reach =
+    let kingReaches coordinate: Reach =
         [ UpRight; DownRight; DownLeft; UpLeft; Up; Right; Down; Left ]
-        |> List.apply coord
+        |> List.apply coordinate
         |> List.filterNones
         |> List.map Seq.singleton
 
-    let knightReaches coord: Reach =
+    let knightReaches coordinate: Reach =
         [
             Up >?> Up >?> Left;
             Up >?> Up >?> Right;
@@ -71,38 +72,38 @@ module Reach =
             Left >?> Left >?> Up;
             Left >?> Left >?> Down;
         ]
-        |> List.apply coord
+        |> List.apply coordinate
         |> List.filterNones
         |> List.map Seq.singleton
 
-    let pawnSingleMoveReaches pawnDirection coord: Reach =
-        match pawnDirection coord with
+    let pawnSingleMoveReaches pawnDirection coordinate: Reach =
+        match pawnDirection coordinate with
         | Some newCoord -> newCoord |> Seq.singleton |> List.singleton
         | None -> []
 
-    let pawnDoubleMoveReaches pawnDirection coord: Reach =
-        Seq.unfoldSimple pawnDirection coord
+    let pawnDoubleMoveReaches pawnDirection coordinate: Reach =
+        Seq.unfoldSimple pawnDirection coordinate
         |> Seq.take 2
         |> List.singleton
 
-    let pawnCaptureReaches pawnDirection coord: Reach =
+    let pawnCaptureReaches pawnDirection coordinate: Reach =
         [
             pawnDirection >?> Left;
             pawnDirection >?> Right;
         ]
-        |> List.apply coord
+        |> List.apply coordinate
         |> List.filterNones
         |> List.map Seq.singleton
 
-    let kingCastleToKingReach castlingDirection coord: Reach =
+    let kingCastleToKingReach castlingDirection coordinate: Reach =
         [ castlingDirection * 2; ]
-        |> List.apply coord
+        |> List.apply coordinate
         |> List.filterNones
         |> List.map Seq.singleton
 
-    let kingCastleToQueenReach castlingDirection coord: Reach =
+    let kingCastleToQueenReach castlingDirection coordinate: Reach =
         [ castlingDirection * 3; ]
-        |> List.apply coord
+        |> List.apply coordinate
         |> List.filterNones
         |> List.map Seq.singleton
 
@@ -112,9 +113,9 @@ module Reach =
         | DoubleMoveRank
         | RegularRank
 
-    let pieceReaches piece coord =
+    let pieceReaches piece coordinate =
         let applyReaches (reachesFunc, act: PlyType) =
-            coord
+            coordinate
             |> reachesFunc
             |> List.where (not << Seq.isEmpty)
             |> List.map (fun reach -> (reach, act))
@@ -123,7 +124,7 @@ module Reach =
 
         match piece with
         | Piece (color, Pawn) ->
-            let _, rank = coord
+            let _, rank = coordinate
             let direction = match color with | White -> Up | Black -> Down
 
             let pawnRankType =
@@ -214,18 +215,18 @@ module Square =
         | PieceSquare (piece, _) -> Some piece
         | _ -> None
 
-    let pieceCoord = function
-        | PieceSquare (_, coord) -> coord
-        | EmptySquare coord -> coord
+    let coordinate = function
+        | PieceSquare (_, c) -> c
+        | EmptySquare c -> c
 
-let squareAt coord placedPieces =
-    let found = placedPieces |> Map.tryFind coord
+let squareAt coordinate placedPieces =
+    let found = placedPieces |> Map.tryFind coordinate
 
     match found with
-    | Some x -> PieceSquare (x, coord)
-    | None -> EmptySquare coord
+    | Some x -> PieceSquare (x, coordinate)
+    | None -> EmptySquare coordinate
 
-let (@@) placedPieces coord = squareAt coord placedPieces
+let (@@) placedPieces coordinate = squareAt coordinate placedPieces
 
 type BoardChange =
     | MovePiece of Coordinate * Coordinate
@@ -294,8 +295,8 @@ module Ply =
             RemovePiece target;
             MovePiece (source, target)]
         | CaptureEnPassant (_, source, target) -> [
-            let coordOfCapturedPawn = (file target, rank source)
-            RemovePiece coordOfCapturedPawn
+            let coordinateOfCapturedPawn = (file target, rank source)
+            RemovePiece coordinateOfCapturedPawn
             MovePiece (source, target)]
         | CastleKingSide White -> [
                 MovePiece (E1, G1);
@@ -322,7 +323,7 @@ module Ply =
                 AddPiece (color, shape, target)
             ]
 
-let coordOfCapturedPiece = function
+let coordinateOfCapturedPiece = function
     | Capture (_, _, target)
     | CaptureAndPromote (_, _, target, _) -> Some target
     | CaptureEnPassant (_, source, target) -> Some (file target, rank source)
@@ -368,6 +369,16 @@ type PlyOutput = {
 let CheckPly (ply, restOfPlies, drawOffer) = { ply = ply; restOfPlies = restOfPlies; isCheck = true; drawOffer = drawOffer }
 let RegularPly (ply, restOfPlies, drawOffer) = { ply = ply; restOfPlies = restOfPlies; isCheck = false; drawOffer = drawOffer }
 
+type RawChessState = {
+    playerInTurn: Player
+    whitePlayerCastlingRights: CastlingRights
+    blackPlayerCastlingRights: CastlingRights
+    pawnCapturableEnPassant: Coordinate option
+    pieces: Map<File * Rank, Piece>
+    pliesWithoutPawnOrCapture: int
+    numberOfMoves: int
+}
+
 /// <summary>
 /// </summary>
 /// <remarks>
@@ -377,7 +388,8 @@ let RegularPly (ply, restOfPlies, drawOffer) = { ply = ply; restOfPlies = restOf
 /// can be captured), the repeated coordinates and their number, and the number of
 /// moves since a pawn moved or a capture happened.
 /// </remarks>
-type ChessState = {
+[<CustomEquality; NoComparison>]
+type ChessState = internal {
     playerInTurn: Player
     whitePlayerCastlingRights: CastlingRights
     blackPlayerCastlingRights: CastlingRights
@@ -388,6 +400,8 @@ type ChessState = {
     repeatableStates: RepetitionState list
     numberOfMoves: int
 }
+
+// custom check - compare against CustomerId only
 with
     member this.currentPlayerCastlingRights = 
         match this.playerInTurn with
@@ -404,8 +418,26 @@ with
         this.repeatableStates
         |> List.where (fun r -> this.repeatableState = r)
         |> List.length
+    member this.board = Array2D.init 8 8 (fun r f -> squareAt (File.fromInt f, Rank.fromInt r) this.pieces)
+    member this.moves = List.rev this.plies
+    member this.toRaw = {
+        pieces = this.pieces
+        playerInTurn = this.playerInTurn
+        whitePlayerCastlingRights = this.whitePlayerCastlingRights
+        blackPlayerCastlingRights = this.blackPlayerCastlingRights
+        pawnCapturableEnPassant = this.pawnCapturableEnPassant
+        pliesWithoutPawnOrCapture = this.pliesWithoutPawnOrCapture
+        numberOfMoves = this.numberOfMoves
+    }
 
-let internal (@@@) game coord = squareAt coord game.pieces
+    override this.Equals other =
+        match other with
+        | :? ChessState as p -> p.toRaw.Equals this.toRaw
+        | _ -> false
+    override this.GetHashCode () = this.toRaw.GetHashCode()
+
+
+let internal (@@@) game coordinate = squareAt coordinate game.pieces
 
 /// <summary>
 /// Generates plies from a ply type, a piece, and a source and target coordinates.
@@ -428,8 +460,8 @@ let toPlies src (Piece (color, sh), plyType, tgt) =
 /// <summary>
 /// Can the ply type be legally executed for a piece with a given target coordinate?
 /// </summary>
-let internal canExecute game sourcePiece targetCoord plyType =
-    let targetSquare = game @@@ targetCoord
+let internal canExecute game sourcePiece targetCoordinate plyType =
+    let targetSquare = game @@@ targetCoordinate
 
     match plyType with
     | MoveType | MoveAndPromoteType ->
@@ -439,7 +471,7 @@ let internal canExecute game sourcePiece targetCoord plyType =
         targetSquare |> (differentColor sourcePiece)
     | EnPassantType ->
         match game.pawnCapturableEnPassant with
-        | Some capturable -> capturable = targetCoord
+        | Some capturable -> capturable = targetCoordinate
         | None -> false
     | CastleKingSideType ->
         match sourcePiece with
@@ -466,14 +498,14 @@ let internal canExecute game sourcePiece targetCoord plyType =
             game @@@ D8 |> Square.isEmpty
         | _ -> false
 
-let internal evaluateReachSquare game plyTypeToTest piece targetCoord =
-    let canDoPlyType = canExecute game piece targetCoord plyTypeToTest
-    let canMove = canExecute game piece targetCoord MoveType
-    if canDoPlyType then Some (piece, plyTypeToTest, targetCoord)
+let internal evaluateReachSquare game plyTypeToTest piece targetCoordinate =
+    let canDoPlyType = canExecute game piece targetCoordinate plyTypeToTest
+    let canMove = canExecute game piece targetCoordinate MoveType
+    if canDoPlyType then Some (piece, plyTypeToTest, targetCoordinate)
     // Even if the ply type cannot be executed, if you can move to the
     // target coordinate we still return something, so that the ply type
     // is evaluated further in the same reach.
-    elif canMove then Some (piece, MoveType, targetCoord)
+    elif canMove then Some (piece, MoveType, targetCoordinate)
     else None
 
 let internal reachCapabilities game piece (plyTypeToAnalyze: PlyType) reach =
@@ -489,15 +521,15 @@ let internal reachCapabilities game piece (plyTypeToAnalyze: PlyType) reach =
 
 /// <summary>Legal plies for a piece (without taking into account the
 /// out-of-check rule).</summary>
-let internal pieceCapabilitiesWithoutCheckFilter game piece sourceCoord =
-    Reach.pieceReaches piece sourceCoord
+let internal pieceCapabilitiesWithoutCheckFilter game piece sourceCoordinate =
+    Reach.pieceReaches piece sourceCoordinate
     |> Seq.collect (fun (reach, plyType) -> reachCapabilities game piece plyType reach)
-    |> Seq.collect (toPlies sourceCoord)
+    |> Seq.collect (toPlies sourceCoordinate)
 
 /// <summary>Coordinates attacked by a piece.</summary>
-let internal attacksBy game (coord, piece) =
-    pieceCapabilitiesWithoutCheckFilter game piece coord
-    |> Seq.map coordOfCapturedPiece
+let internal attacksBy game (coordinate, piece) =
+    pieceCapabilitiesWithoutCheckFilter game piece coordinate
+    |> Seq.map coordinateOfCapturedPiece
     |> Seq.filterNones
 
 /// <summary>Coordinates attacked by a player.</summary>
@@ -508,41 +540,44 @@ let internal attacks playerColor game =
     |> Seq.collect (attacksBy game)
 
 /// <summary>Is the coordinate attacked by a player?</summary>
-let internal isAttackedBy playerColor game targetCoord =
+let internal isAttackedBy playerColor game targetCoordinate =
     game
     |> attacks playerColor
-    |> Seq.contains targetCoord
+    |> Seq.contains targetCoordinate
 
 /// <summary>Executes a board change (unchecked).</summary>
 let private rawBoardChange pieces boardChange =
     match boardChange with
-    | MovePiece (sourceCoord, targetCoord) ->
-        match pieces @@ sourceCoord with
+    | MovePiece (sourceCoordinate, targetCoordinate) ->
+        match pieces @@ sourceCoordinate with
         | EmptySquare _ ->
-            failwith $"Trying to move a piece at %A{sourceCoord} but there is no piece there."
+            failwith $"Trying to move a piece at %A{sourceCoordinate} but there is no piece there."
         | PieceSquare (piece, _) ->
             pieces
-            |> Map.remove sourceCoord
-            |> Map.remove targetCoord
-            |> Map.add targetCoord piece
-    | RemovePiece coord ->
-        assert (pieces |> Map.containsKey coord)
+            |> Map.remove sourceCoordinate
+            |> Map.remove targetCoordinate
+            |> Map.add targetCoordinate piece
+    | RemovePiece coordinate ->
+        assert (pieces |> Map.containsKey coordinate)
 
         pieces
-        |> Map.remove coord
-    | AddPiece (col, shp, coord) ->
+        |> Map.remove coordinate
+    | AddPiece (col, shp, coordinate) ->
         pieces
-        |> Map.remove coord
-        |> Map.add coord (Piece (col, shp))
+        |> Map.remove coordinate
+        |> Map.add coordinate (Piece (col, shp))
 
 let opponent = opposite
 
 /// <summary>Is the player in check?</summary>
 let internal isCheck playerColor game =
-    let possibleKingCoord = game.pieces |> Map.tryFindKey (fun _ piece -> piece = Piece (playerColor, King))
-    match possibleKingCoord with
-    | Some kingCoord -> isAttackedBy (opponent playerColor) game kingCoord
+    let possibleKingCoordinate = game.pieces |> Map.tryFindKey (fun _ piece -> piece = Piece (playerColor, King))
+    match possibleKingCoordinate with
+    | Some kingCoordinate -> isAttackedBy (opponent playerColor) game kingCoordinate
     | None -> false
+
+type ChessState with
+    member this.isCheck = isCheck this.playerInTurn this
 
 let private rawExecutePly ply pieces =
     ply
@@ -639,40 +674,13 @@ let internal nextGameState ply restOfPlies drawOffer gameState =
         plies = newPlyOutput :: nextGameStateTemp.plies
     }
 
-let internal pieceCapabilities game (piece, sourceCoord) =
+let internal pieceCapabilities game (piece, sourceCoordinate) =
     let checkFilter ply =
         nextGameState ply [] false game
         |> (not << isCheck game.playerInTurn)
 
-    pieceCapabilitiesWithoutCheckFilter game piece sourceCoord
+    pieceCapabilitiesWithoutCheckFilter game piece sourceCoordinate
     |> Seq.where checkFilter
-
-type ChessStateRepresentation = {
-    board: Square[,]
-    playerInTurn: Player
-    isCheck: bool
-    whitePlayerCastlingRights: CastlingRights
-    blackPlayerCastlingRights: CastlingRights
-    pawnCapturableEnPassant: Coordinate option
-    pliesWithoutPawnOrCapture: int
-    moves: PlyOutput list
-    numberOfMoves: int
-}
-
-module ChessStateRepresentation =
-    let board (rep: ChessStateRepresentation) = rep.board
-    let playerInTurn (rep: ChessStateRepresentation) = rep.playerInTurn
-    let isCheck (rep: ChessStateRepresentation) = rep.isCheck
-    let whitePlayerCastlingRights (rep: ChessStateRepresentation) = rep.whitePlayerCastlingRights
-    let canWhiteCastleKingSide = whitePlayerCastlingRights >> CastlingRights.canCastleKingSide
-    let canWhiteCastleQueenSide = whitePlayerCastlingRights >> CastlingRights.canCastleQueenSide
-    let blackPlayerCastlingRights (rep: ChessStateRepresentation) = rep.blackPlayerCastlingRights
-    let canBlackCastleKingSide = blackPlayerCastlingRights >> CastlingRights.canCastleKingSide
-    let canBlackCastleQueenSide = blackPlayerCastlingRights >> CastlingRights.canCastleQueenSide
-    let pawnCapturableEnPassant (rep: ChessStateRepresentation) = rep.pawnCapturableEnPassant
-    let pliesWithoutPawnOrCapture (rep: ChessStateRepresentation) = rep.pliesWithoutPawnOrCapture
-    let moves (rep: ChessStateRepresentation) = rep.moves
-    let numberOfMoves (rep: ChessStateRepresentation) = rep.numberOfMoves
 
 type DrawType =
     | Agreement
@@ -687,37 +695,26 @@ type DrawType =
 /// Possible results of a player action result.
 /// </summary>
 type PlayerActionOutcome =
-    | GameStarted of ChessStateRepresentation * ExecutableAction list
-    | PlayerMoved of ChessStateRepresentation * ExecutableAction list * bool
-    | WonByCheckmate of ChessStateRepresentation * Color
-    | LostByResignation of ChessStateRepresentation * Color
-    | Draw of ChessStateRepresentation * Color * DrawType
+    | GameStarted of ChessState * ExecutableAction list
+    | PlayerMoved of ChessState * ExecutableAction list * bool
+    | WonByCheckmate of ChessState * Color
+    | LostByResignation of ChessState * Color
+    | Draw of ChessState * DrawType
 
-and ExecutableAction = PlayerActionRepresentation * (unit -> PlayerActionOutcome)
+and ExecutableAction = PlayerAction * (unit -> PlayerActionOutcome)
 
-and internal PlayerAction =
+and PlayerAction =
     | MovePiece of Ply * Ply list * bool
     | Resign
     | AcceptDraw
-
-and PlayerActionRepresentation =
-    | MovePiece of Ply * Ply list * bool
-    | Resign
-    | AcceptDraw
-
-let internal toRepresentation (pa: PlayerAction) =
-    match pa with
-    | PlayerAction.MovePiece (ply, rest, drawOffered) -> PlayerActionRepresentation.MovePiece (ply, rest, drawOffered)
-    | PlayerAction.Resign -> PlayerActionRepresentation.Resign
-    | PlayerAction.AcceptDraw -> PlayerActionRepresentation.AcceptDraw
 
 module PlayerActionOutcome =
-    let representation = function
-        | Draw (repr, _, _) -> repr
-        | LostByResignation (repr, _) -> repr
-        | WonByCheckmate (repr, _) -> repr
-        | GameStarted (repr, _) -> repr
-        | PlayerMoved (repr, _, _) -> repr
+    let state = function
+        | Draw (state, _) -> state
+        | LostByResignation (state, _) -> state
+        | WonByCheckmate (state, _) -> state
+        | GameStarted (state, _) -> state
+        | PlayerMoved (state, _, _) -> state
 
     let actions = function
         | Draw _
@@ -732,25 +729,10 @@ module ExecutableAction =
     let action = fst
     let executefn = snd
 
-let representation (game: ChessState) =
-    {
-        playerInTurn = game.playerInTurn
-        whitePlayerCastlingRights = game.whitePlayerCastlingRights
-        blackPlayerCastlingRights = game.blackPlayerCastlingRights
-        pawnCapturableEnPassant = game.pawnCapturableEnPassant
-        board = Array2D.init 8  8 (fun r f ->
-            game @@@ (File.fromInt f, Rank.fromInt r)
-        )
-        moves = List.rev game.plies
-        pliesWithoutPawnOrCapture = game.pliesWithoutPawnOrCapture
-        numberOfMoves = game.numberOfMoves
-        isCheck = isCheck game.playerInTurn game
-    }
-
 // Possible plies for the player in turn.
 let internal playerPlies gameState =
-    let getCapabilities (sourceCoord, sourcePiece) =
-        pieceCapabilities gameState (sourcePiece, sourceCoord)
+    let getCapabilities (sourceCoordinate, sourcePiece) =
+        pieceCapabilities gameState (sourcePiece, sourceCoordinate)
 
     let belongsToPlayer _ (Piece (pieceColor, _)) = pieceColor = gameState.playerInTurn
     
@@ -760,109 +742,122 @@ let internal playerPlies gameState =
     |> Seq.collect getCapabilities
 
 // given a player & a gameState, it returns a move result for that player.
-let rec trol = 1
+let rec private recStart = ()
 
 // player makes a move
 and internal executePlayerAction (gameState: ChessState) (playerAction: PlayerAction): PlayerActionOutcome =
     match playerAction with
-    | PlayerAction.MovePiece (ply, restOfPlies, drawOffer) ->
+    | MovePiece (ply, restOfPlies, drawOffer) ->
         let newGameState = nextGameState ply restOfPlies drawOffer gameState
         getOutcomeFromNewBoard newGameState
-    | PlayerAction.Resign ->
-        let repr = representation gameState
-        LostByResignation (repr, (opponent gameState.playerInTurn))
-    | PlayerAction.AcceptDraw ->
-        let repr = representation gameState
-        Draw (repr, gameState.playerInTurn, Agreement)
+    | Resign ->
+        LostByResignation (gameState, (opponent gameState.playerInTurn))
+    | AcceptDraw ->
+        Draw (gameState, Agreement)
 
 and internal getOutcomeFromNewBoard (gameState: ChessState) =
-    let repr = representation gameState
-    let drawOffer = gameState.plies |> List.tryHead |> Option.map (fun x -> x.drawOffer) |> Option.defaultTo false
+    let drawOffer = gameState.plies |> List.tryHead |> Option.map (fun x -> x.drawOffer) |> Option.defaultValue false
 
     if drawOffer && gameState.pliesWithoutPawnOrCapture >= 50 then
-        Draw (repr, gameState.playerInTurn, FiftyMovements)
+        Draw (gameState, FiftyMovements)
     elif drawOffer &&  gameState.repetitionCount >= 3 then
-        Draw (repr, gameState.playerInTurn, ThreefoldRepetition)
+        Draw (gameState, ThreefoldRepetition)
     elif gameState.pliesWithoutPawnOrCapture > 75 then
-        Draw (repr, gameState.playerInTurn, SeventyFiveMovements)
+        Draw (gameState, SeventyFiveMovements)
     elif gameState.repetitionCount >= 5 then
-        Draw (repr, gameState.playerInTurn, FivefoldRepetition)
+        Draw (gameState, FivefoldRepetition)
     else
         let playerPlies = playerPlies gameState |> Seq.toList
         let canMove = playerPlies |> (not << List.isEmpty)
         if canMove then
             let actions = getExecutableActions playerPlies gameState drawOffer
             match gameState.plies |> List.length with
-            | 0 -> GameStarted (repr, actions)
-            | _ -> PlayerMoved (repr, actions, drawOffer)
+            | 0 -> GameStarted (gameState, actions)
+            | _ -> PlayerMoved (gameState, actions, drawOffer)
         else if isCheck gameState.playerInTurn gameState then
-            WonByCheckmate (repr, gameState.playerInTurn)
+            WonByCheckmate (gameState, gameState.playerInTurn)
         else
-            Draw (repr, gameState.playerInTurn, Stalemate)
+            Draw (gameState, Stalemate)
 
 // Convert possible plies to executable actions, adding Resign and OfferDraw
 and internal getExecutableActions plies gameState drawOffer =
-    let movePieces = plies |> Seq.collect (fun ply -> [PlayerAction.MovePiece (ply, plies, false); PlayerAction.MovePiece (ply, plies, true)])
+    let movePieces = plies |> Seq.collect (fun ply -> [MovePiece (ply, plies, false); MovePiece (ply, plies, true)])
 
     movePieces
-    |> Seq.append [PlayerAction.Resign]
-    |> Seq.append (if drawOffer then [PlayerAction.AcceptDraw] else [])
+    |> Seq.append [Resign]
+    |> Seq.append (if drawOffer then [AcceptDraw] else [])
     |> Seq.map (makeNextExecutableAction gameState)
     |> Seq.toList
 
 and internal makeNextExecutableAction gameState playerAction =
     let executeFn() = executePlayerAction gameState playerAction
-    (toRepresentation playerAction), executeFn
+    playerAction, executeFn
 
-let initialGameState =
-    let initialPieces = Map.ofList [
-        A1, WhiteRook
-        B1, WhiteKnight
-        C1, WhiteBishop
-        D1, WhiteQueen
-        E1, WhiteKing
-        F1, WhiteBishop
-        G1, WhiteKnight
-        H1, WhiteRook
-        A2, WhitePawn
-        B2, WhitePawn
-        C2, WhitePawn
-        D2, WhitePawn
-        E2, WhitePawn
-        F2, WhitePawn
-        G2, WhitePawn
-        H2, WhitePawn
-        A7, BlackPawn
-        B7, BlackPawn
-        C7, BlackPawn
-        D7, BlackPawn
-        E7, BlackPawn
-        F7, BlackPawn
-        G7, BlackPawn
-        H7, BlackPawn
-        A8, BlackRook
-        B8, BlackKnight
-        C8, BlackBishop
-        D8, BlackQueen
-        E8, BlackKing
-        F8, BlackBishop
-        G8, BlackKnight
-        H8, BlackRook
-    ]
+module ChessState =
+    let initial =
+        let initialPieces = Map.ofList [
+            A1, WhiteRook
+            B1, WhiteKnight
+            C1, WhiteBishop
+            D1, WhiteQueen
+            E1, WhiteKing
+            F1, WhiteBishop
+            G1, WhiteKnight
+            H1, WhiteRook
+            A2, WhitePawn
+            B2, WhitePawn
+            C2, WhitePawn
+            D2, WhitePawn
+            E2, WhitePawn
+            F2, WhitePawn
+            G2, WhitePawn
+            H2, WhitePawn
+            A7, BlackPawn
+            B7, BlackPawn
+            C7, BlackPawn
+            D7, BlackPawn
+            E7, BlackPawn
+            F7, BlackPawn
+            G7, BlackPawn
+            H7, BlackPawn
+            A8, BlackRook
+            B8, BlackKnight
+            C8, BlackBishop
+            D8, BlackQueen
+            E8, BlackKing
+            F8, BlackBishop
+            G8, BlackKnight
+            H8, BlackRook
+        ]
 
-    {
-        playerInTurn = White
-        pieces = initialPieces
-        whitePlayerCastlingRights = bothWaysCastlingRights
-        blackPlayerCastlingRights = bothWaysCastlingRights
-        pawnCapturableEnPassant = None
-        plies = []
-        pliesWithoutPawnOrCapture = 0
-        repeatableStates = []
-        numberOfMoves = 1
-    }
+        {
+            playerInTurn = White
+            pieces = initialPieces
+            whitePlayerCastlingRights = bothWaysCastlingRights
+            blackPlayerCastlingRights = bothWaysCastlingRights
+            pawnCapturableEnPassant = None
+            plies = []
+            pliesWithoutPawnOrCapture = 0
+            repeatableStates = []
+            numberOfMoves = 1
+        }
+        
+    /// constructor
+    let board (rep: ChessState) = rep.board
+    let playerInTurn (rep: ChessState) = rep.playerInTurn
+    let isCheck (rep: ChessState) = rep.isCheck
+    let whitePlayerCastlingRights (rep: ChessState) = rep.whitePlayerCastlingRights
+    let canWhiteCastleKingSide = whitePlayerCastlingRights >> CastlingRights.canCastleKingSide
+    let canWhiteCastleQueenSide = whitePlayerCastlingRights >> CastlingRights.canCastleQueenSide
+    let blackPlayerCastlingRights (rep: ChessState) = rep.blackPlayerCastlingRights
+    let canBlackCastleKingSide = blackPlayerCastlingRights >> CastlingRights.canCastleKingSide
+    let canBlackCastleQueenSide = blackPlayerCastlingRights >> CastlingRights.canCastleQueenSide
+    let pawnCapturableEnPassant (rep: ChessState) = rep.pawnCapturableEnPassant
+    let pliesWithoutPawnOrCapture (rep: ChessState) = rep.pliesWithoutPawnOrCapture
+    let moves (rep: ChessState) = rep.moves
+    let numberOfMoves (rep: ChessState) = rep.numberOfMoves
 
-let newStandardChessGame = getOutcomeFromNewBoard initialGameState
+let newStandardChessGame = getOutcomeFromNewBoard ChessState.initial
 
 let nullValidate = Ok
 
@@ -875,12 +870,12 @@ module Result =
     | true -> Ok ()
     | false -> Error errorData
 
-let validateStandardChess (gameState: ChessState) =
-    let invertedPieces (gameState: ChessState) =
+let internal validateStandardChess (gameState: ChessState) =
+    let pieceMap (gameState: ChessState) =
         gameState.pieces
         |> Map.toList
         |> List.groupBy snd
-        |> List.map (fun (k, pieces) -> (k, List.map (fun (coord, _) -> coord) pieces))
+        |> List.map (fun (k, pieces) -> (k, List.map (fun (coordinate, _) -> coordinate) pieces))
         |> Map.ofList
 
     let pieceCoords p = Map.tryFind p >> Result.ofOption $"No piece %A{p}"
@@ -893,18 +888,47 @@ let validateStandardChess (gameState: ChessState) =
     let query f2 = function
     | Some x -> f2 x
     | None -> false
-
+    
     let onlyOnePiece p =
-        gameState |> (invertedPieces >> Map.tryFind p ?>> List.length >> query (fun x -> x = 1))
+        gameState |> (pieceMap >> Map.tryFind p ?>> List.length >> query (fun x -> x = 1))
 
-    let pieceCoordIs p coord =
-        invertedPieces >> Map.tryFind p >> query (fun x -> List.contains coord x)
+    let nPiecesOrLess p n =
+        gameState |> (pieceMap >> Map.tryFind p ?>> List.length >> query (fun x -> x <= n))
+    
+    let pieceCoordinateIs piece coordinate =
+        pieceMap >> Map.tryFind piece >> query (List.contains coordinate)
 
     let whiteCastlingKingside =
         (not gameState.whitePlayerCastlingRights.canCastleKingSide) ||
         (
-        gameState |> (pieceCoordIs WhiteKing E1) &&
-        gameState |> (pieceCoordIs WhiteRook H1))
+        gameState |> (pieceCoordinateIs WhiteKing E1) &&
+        gameState |> (pieceCoordinateIs WhiteRook H1))
+
+    let blackCastlingKingside =
+        (not gameState.blackPlayerCastlingRights.canCastleKingSide) ||
+        (
+        gameState |> (pieceCoordinateIs BlackKing E8) &&
+        gameState |> (pieceCoordinateIs BlackRook H8))
+
+    let numberOfWhitePawns = 8
+    let numberOfWhiteRooks = 2
+    let numberOfWhiteKnights = 2
+    let numberOfWhiteBishops = 2
+    let numberOfWhiteQueens = 1
+
+    let eightWhitePawnsOrLess = numberOfWhitePawns <= 8
+
+    let excessWhitePieces =
+        min (numberOfWhiteRooks - 2) 0 +
+        min (numberOfWhiteKnights - 2) 0 +
+        min (numberOfWhiteBishops - 2) 0 +
+        min (numberOfWhiteQueens - 1) 0
+    let numberOfCapturedWhitePawns = 8 - numberOfWhitePawns
+    
+    let moreExcessPiecesThanAllowedByCapturedPawns = numberOfCapturedWhitePawns >= excessWhitePieces
+
+    let noPawnsAtFirstRank = true
+    let noPawnsAtLastRank = true
 
     if (not <| onlyOnePiece WhiteKing) then
         Error "Not 1 white king"
@@ -912,6 +936,8 @@ let validateStandardChess (gameState: ChessState) =
         Error "Not 1 black king"
     elif (not whiteCastlingKingside) then
         Error "White can castle kingside but the king is not at E1 or a rook at H1"
+    elif (not blackCastlingKingside) then
+        Error "Black can castle kingside but the king is not at E8 or a rook at H8"
     else
         Ok gameState
 
@@ -923,3 +949,6 @@ let setupChessPosition gameState validate =
 
 let setupStandardChessPosition gameState =
     setupChessPosition gameState validateStandardChess
+
+let initialStandardChessPosition =
+    ChessState.initial |> getOutcomeFromNewBoard

@@ -1,7 +1,10 @@
-﻿open Chess
+﻿open Engine
 open Output
 open GameConsole
 open ChessGameConsole
+
+type State =
+    | State
 
 [<EntryPoint>]
 let main argv =

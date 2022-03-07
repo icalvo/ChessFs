@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>6.0</LangVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -12,12 +13,12 @@
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="Configuration.fs" />
     <Compile Include="Utils.fs" />
-    <Compile Include="CoreTypes.fs" />
-    <Compile Include="Chess.fs" />
-    <Compile Include="Notation.fs" />
-    <Compile Include="Parsing.fs" />
     <Compile Include="StateMachine.fs" />
     <Compile Include="StateActions.fs" />
+    <Compile Include="CoreTypes.fs" />
+    <Compile Include="Engine.fs" />
+    <Compile Include="Notation.fs" />
+    <Compile Include="Parsing.fs" />
     <Compile Include="ChessStateMachine.fs" />
   </ItemGroup>
 
