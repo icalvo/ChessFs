@@ -1,13 +1,11 @@
 ﻿namespace ChessFs.Tests.Chess
 
-module ``Chess Tests`` =
+module ``Basics Tests`` =
     open Xunit
     open Swensen.Unquote
     open Utils
     open CoreTypes
     open Engine
-    open Notation
-    open ChessStateMachine
 
     [<Fact>]
     let ``Directions tests``() =
@@ -76,16 +74,15 @@ module ``Chess Tests`` =
                     ]
         @>
 
-    let availableActions = function
-        | Ok x ->
-            match x with
-            | GameStarted (_, availableActions)
-            | DrawOffered (_, availableActions)
-            | PlayerMoved (_, availableActions) ->
-                List.map executableActionToAlgebraic availableActions
-            | _ -> List.empty
-        | Error msg -> ["Invalid board: " + msg]
- 
+module ``Promotion Tests`` =
+    open Xunit
+    open Utils
+    open CoreTypes
+    open Engine
+    open Notation
+    open ChessStateMachine
+    open Helpers
+     
     [<Fact>]
     let ``Promoting available actions``() =
         {
@@ -131,6 +128,38 @@ module ``Chess Tests`` =
             "c8=B"; "c8=N"; "c8=Q"; "c8=R";
             "cxb8=B"; "cxb8=N"; "cxb8=Q"; "cxb8=R"]
 
+module ``Castling Tests`` =
+    open Xunit
+    open Utils
+    open CoreTypes
+    open Engine
+    open Notation
+    open ChessStateMachine
+    open Helpers
+
+    [<Fact>]
+    let ``Castling not possible when final square is in check``() =
+        {
+            playerInTurn = Player White
+            pieces =
+                Map.ofList [
+                    E1, WhiteKing
+                    A1, WhiteRook
+                    H1, WhiteRook
+                    G8, BlackRook
+                    E4, BlackKing
+                ]
+            whitePlayerCastlingRights = CastlingRights.justKingside
+            blackPlayerCastlingRights = CastlingRights.none
+            pawnCapturableEnPassant = None
+            pliesWithoutPawnOrCapture = 0
+            numberOfMoves = 1
+        }
+        |> ChessState.fromRaw
+        |> Result.bind setupStandardChessPosition
+        |> availableActions
+        |> Assert.doesNotContain "O-O"
+
     [<Fact>]
     let ``Castling not possible when intermediate squares are in check``() =
         {
@@ -140,7 +169,7 @@ module ``Chess Tests`` =
                     E1, WhiteKing
                     A1, WhiteRook
                     H1, WhiteRook
-                    G8, BlackRook
+                    F8, BlackRook
                     E4, BlackKing
                 ]
             whitePlayerCastlingRights = CastlingRights.justKingside
@@ -197,32 +226,3 @@ module ``Chess Tests`` =
         |> Result.bind setupStandardChessPosition
         |> availableActions
         |> Assert.doesNotContain "Kf1"
-
-    open ChessState
-
-    let throwOnError = function
-        | Ok r -> r
-        | Error x -> failwith $"{x}"
-
-    let internal boardAfter =
-        algebraicStringChessFailingStateMachine
-        >> Seq.last
-        >> throwOnError
-        >> PlayerActionOutcome.state
-        >> board
-
-    let lastRepToString fn =
-        algebraicStringChessStateMachine
-        >> Seq.last
-        >> Result.toValue2 (PlayerActionOutcome.state >> fn) "Failure"
-
-    [<Fact>]
-    let ``FEN tests``() =
-        [ ] |> boardAfter |> boardToFEN =!
-            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"
-        [ "e4" ] |> boardAfter |> boardToFEN =!
-            "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR"
-        [ ] |> lastRepToString toFEN =! "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-        [ "e4" ] |> lastRepToString toFEN =! "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
-        [ "e4"; "e5" ] |> lastRepToString toFEN =! "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2"
-

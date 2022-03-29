@@ -14,6 +14,7 @@
 
   <ItemGroup>
     <Compile Include="Assert.fs" />
+    <Compile Include="Helpers.fs" />
     <Compile Include="NotationTests.fs" />
     <Compile Include="ParsingTests.fs" />
     <Compile Include="UtilsTests.fs" />

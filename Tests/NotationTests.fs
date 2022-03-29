@@ -1,12 +1,14 @@
 ﻿namespace ChessFs.Tests.Notation
 
-
 module ``Notation Tests`` =
     open Xunit
     open Swensen.Unquote
     open CoreTypes
     open Engine
     open Notation
+    open ChessStateMachine
+    open ChessState    
+    open Utils
 
     [<Fact>]
     let ``Shape tests``() =
@@ -75,4 +77,30 @@ module ``Notation Tests`` =
     let ``plyToAlgebraic move other knight at same file, another at same rank``() =
         PlyOutput.toAlgebraic (RegularPly (knightMove(C3, E4),
             [knightMove(C6, E4); knightMove(G3, E4)], NoDrawOffer)) =! "Nc3e4"
+
+    let throwOnError = function
+        | Ok r -> r
+        | Error x -> failwith $"{x}"
+
+    let internal boardAfter =
+        algebraicStringChessFailingStateMachine
+        >> Seq.last
+        >> throwOnError
+        >> PlayerActionOutcome.state
+        >> board
+
+    let lastRepToString fn =
+        algebraicStringChessStateMachine
+        >> Seq.last
+        >> Result.toValue2 (PlayerActionOutcome.state >> fn) "Failure"
+
+    [<Fact>]
+    let ``FEN tests``() =
+        [ ] |> boardAfter |> boardToFEN =!
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"
+        [ "e4" ] |> boardAfter |> boardToFEN =!
+            "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR"
+        [ ] |> lastRepToString toFEN =! "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+        [ "e4" ] |> lastRepToString toFEN =! "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
+        [ "e4"; "e5" ] |> lastRepToString toFEN =! "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2"
 

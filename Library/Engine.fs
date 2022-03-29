@@ -350,7 +350,6 @@ type Square =
     | EmptySquare of Coordinate
 
 module Square =
-
     let isEmpty = function
         | EmptySquare _ -> true
         | _ -> false
@@ -371,6 +370,10 @@ module Square =
         | PieceSquare (_, c) -> c
         | EmptySquare c -> c
 
+    let pieceAndCoordinate: Square -> (Coordinate * Piece) option = function
+        | PieceSquare (piece, coordinate) -> Some (coordinate, piece)
+        | EmptySquare _ -> None
+
 let squareAt coordinate placedPieces =
     let found = placedPieces |> Map.tryFind coordinate
 
@@ -379,12 +382,6 @@ let squareAt coordinate placedPieces =
     | None -> EmptySquare coordinate
 
 let (@@) placedPieces coordinate = squareAt coordinate placedPieces
-
-let coordinateOfCapturedPiece = function
-    | Capture (_, _, target)
-    | CaptureAndPromote (_, _, target, _) -> Some target
-    | CaptureEnPassant (_, source, target) -> Some (file target, rank source)
-    | _ -> None
 
 let sameColor (Piece (sourceColor, _)) square =
     match Square.pieceColor square with
@@ -427,10 +424,10 @@ module CheckStatus =
         function
         | true -> IsCheck
         | false -> NoCheck
-    let not =
+    let toBool =
         function
-        | IsCheck -> false
-        | NoCheck -> true
+        | IsCheck -> true
+        | NoCheck -> false
 
 type DrawOfferStatus =
     | IsDrawOffer
@@ -643,10 +640,10 @@ module internal ReachStep =
     let isFinal = function | Impossible | PossibleFinalPly _ -> true | _ -> false
 
 let internal evaluateReachSquare game ply =
-    let canDoPlyType = canExecute game ply
+    let canDoPly = canExecute game ply
     let movePly = Ply.equivalentMove ply
     let canMove = canExecute game movePly
-    if canDoPlyType then
+    if canDoPly then
         if Ply.isCapture ply then
             PossibleFinalPly ply
         else
@@ -680,26 +677,44 @@ let internal pieceCapabilitiesWithoutCheckFilter game piece sourceCoordinate =
     let pieceReaches = PieceReaches.pieceReaches piece sourceCoordinate
     pieceReaches |> Seq.collect (reachCapabilities game)
 
-/// <summary>Coordinates attacked by a piece.</summary>
-let internal attacksBy game (coordinate, piece) =
-    pieceCapabilitiesWithoutCheckFilter game piece coordinate
-    |> Seq.map coordinateOfCapturedPiece
-    |> Seq.filterNones
-
-/// <summary>Coordinates attacked by a player.</summary>
-let internal attacks target playerColor game =
-//    let allReaches = [ PieceReaches.queenReaches; PieceReaches.knightReaches ]
-//    let potentialAttackSources = allReaches |> List.collect (fun x -> x target) |> List.collect Seq.toList
-    game.pieces
-    |> Map.filter (fun pos (Piece (pieceColor, _)) -> pieceColor = playerColor)
-    |> Map.toSeq
-    |> Seq.collect (attacksBy game)
-
 /// <summary>Is the coordinate attacked by a player?</summary>
 let internal isAttackedBy playerColor game targetCoordinate =
-    game
-    |> attacks targetCoordinate playerColor
-    |> Seq.contains targetCoordinate
+    let attacksBy (coordinate, piece) =
+        let direction = match playerColor with | White -> PieceReaches.Up | Black -> PieceReaches.Down
+        let reachesFunc =
+            match Piece.shape piece with
+            | Knight -> PieceReaches.knightReaches
+            | Bishop -> PieceReaches.bishopReaches
+            | Rook -> PieceReaches.rookReaches
+            | Queen -> PieceReaches.queenReaches
+            | Pawn -> PieceReaches.pawnCaptureReaches direction
+            | _ -> fun _ -> []
+
+        let reaches = reachesFunc coordinate
+        let traverseReach = Seq.takeWhileIncludingLast ((@@@) game >> Square.isEmpty)
+        reaches |> Seq.collect traverseReach
+
+    let allReaches = [ PieceReaches.queenReaches; PieceReaches.knightReaches ]
+    let potentialAttackSources =
+        allReaches
+        |> Seq.collect (fun x -> x targetCoordinate)
+        |> Seq.collect id
+
+    let hasPieceWithColor: Square -> bool = function
+    | PieceSquare (Piece(color, _), _) -> color = playerColor
+    | _ -> false
+
+    let x: Square -> Coordinate seq =
+        Square.pieceAndCoordinate
+        >> (Option.map attacksBy)
+        >> (Option.defaultValue Seq.empty)
+    let attackedCoordinates =
+        potentialAttackSources
+        |> Seq.map ((@@@) game)
+        |> Seq.where hasPieceWithColor
+        |> Seq.collect x
+        
+    Seq.contains targetCoordinate attackedCoordinates
 
 /// <summary>Executes a board change (unchecked).</summary>
 let private rawBoardChange pieces boardChange =
@@ -729,13 +744,7 @@ let opponent (Player playerColor) = Player (opposite playerColor)
 let internal isCheck player (game: ChessState) =
     let (Player playerColor) = player
     let kingCoordinate = game.king player
-    let result = isAttackedBy (opposite playerColor) game kingCoordinate |> CheckStatus.create
-    match result with
-    | IsCheck ->
-        printfn "Check??"
-    | _ -> ()
-       
-    result
+    isAttackedBy (opposite playerColor) game kingCoordinate |> CheckStatus.create
 
 type ChessState with
     member this.check = isCheck this.playerInTurn this
@@ -792,6 +801,10 @@ let internal nextGameState ply restOfPlies drawOffer gameState =
         match ply with
         | Move(Piece (color, King), _, target)
         | Capture(Piece (color, King), _, target) -> gameState.kings |> Colored.update color target
+        | CastleKingSide White -> gameState.kings |> Colored.update White G1
+        | CastleKingSide Black -> gameState.kings |> Colored.update Black G8
+        | CastleQueenSide White -> gameState.kings |> Colored.update White C1
+        | CastleQueenSide Black -> gameState.kings |> Colored.update Black C8
         | _ -> gameState.kings
 
     let nextGameStateTemp = {
@@ -843,12 +856,23 @@ let internal nextGameState ply restOfPlies drawOffer gameState =
     }
 
 let internal pieceCapabilities game (piece, sourceCoordinate) =
-    let checkFilter ply =
+    let isCheck p g = CheckStatus.toBool <| isCheck p g
+
+    let runsIntoCheck ply =
         nextGameState ply [] NoDrawOffer game
-        |> (CheckStatus.not << isCheck game.playerInTurn)
+        |> isCheck game.playerInTurn
+
+    let castlingPathAttacked =
+        function
+        | CastleKingSide White -> isAttackedBy Black game F1
+        | CastleKingSide Black -> isAttackedBy White game F8
+        | CastleQueenSide White -> isAttackedBy Black game D1
+        | CastleQueenSide Black -> isAttackedBy White game D8
+        | _ -> false
 
     pieceCapabilitiesWithoutCheckFilter game piece sourceCoordinate
-    |> Seq.where checkFilter
+    |> Seq.where (not << castlingPathAttacked)
+    |> Seq.where (not << runsIntoCheck)
 
 type DrawType =
     | Agreement
