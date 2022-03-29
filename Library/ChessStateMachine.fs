@@ -6,10 +6,10 @@ open Notation
 
 let chessStateMachineFrom initialState translateAction normalizeInput input =
     let actions = PlayerActionOutcome.actions
-    let execute = ExecutableAction.executefn
+    let execute = ExecutableAction.executeFn
     stateActionsFailingStateMachine initialState actions translateAction normalizeInput execute input
 
-let chessStateMachine translateAction = chessStateMachineFrom newStandardChessGame translateAction
+let chessStateMachine translateAction = chessStateMachineFrom (initialStandardChessPosition()) translateAction
 
 let toLowerInvariant (s: string) = s.ToLowerInvariant()
 
@@ -18,14 +18,14 @@ let algebraicChessStateMachine translateInput input = chessStateMachine (executa
 let algebraicStringChessStateMachine input = algebraicChessStateMachine id input
 
 let algebraicStringChessActionsTransitionIgnoring =
-    actionsTransitionIgnoring PlayerActionOutcome.actions (executableActionToAlgebraic >> toLowerInvariant) toLowerInvariant ExecutableAction.executefn
+    actionsTransitionIgnoring PlayerActionOutcome.actions (executableActionToAlgebraic >> toLowerInvariant) toLowerInvariant ExecutableAction.executeFn
 
 let chessIgnoringStateMachineFrom initialState normalizeAction normalizeInput input =
     let actions = PlayerActionOutcome.actions
-    let execute = ExecutableAction.executefn
+    let execute = ExecutableAction.executeFn
     stateActionsIgnoringStateMachine initialState actions normalizeAction normalizeInput execute input
 
-let chessIgnoringStateMachine translateAction = chessIgnoringStateMachineFrom newStandardChessGame translateAction
+let chessIgnoringStateMachine translateAction = chessIgnoringStateMachineFrom (initialStandardChessPosition()) translateAction
 
 let algebraicChessIgnoringStateMachine translateInput input = chessIgnoringStateMachine (executableActionToAlgebraic >> toLowerInvariant) (translateInput >> toLowerInvariant) input
 
@@ -33,10 +33,10 @@ let algebraicStringChessIgnoringStateMachine input = algebraicChessIgnoringState
 
 let chessFailingStateMachineFrom initialState normalizeAction normalizeInput input =
     let actions = PlayerActionOutcome.actions
-    let execute = ExecutableAction.executefn
+    let execute = ExecutableAction.executeFn
     stateActionsFailingStateMachine initialState actions normalizeAction normalizeInput execute input
 
-let chessFailingStateMachine translateAction = chessFailingStateMachineFrom newStandardChessGame translateAction
+let chessFailingStateMachine translateAction = chessFailingStateMachineFrom (initialStandardChessPosition()) translateAction
 
 let algebraicChessFailingStateMachine translateInput input = chessFailingStateMachine (executableActionToAlgebraic >> toLowerInvariant) (translateInput >> toLowerInvariant) input
 

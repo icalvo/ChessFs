@@ -24,8 +24,8 @@ let ppiece = charChoice [
 ]
 
 let pplayer = charChoice [
-    'w', White
-    'b', Black
+    'w', Player White
+    'b', Player Black
 ]
 
 let pcr c = c |> pchar |> opt |>> Option.isSome
@@ -56,8 +56,6 @@ let emptySquareRange n = List.init n (fun _ -> None)
 let psquare = (ppiece |>> pieceSquareRange) <|> pemptySquareNumber
 let prow = (many psquare |>> List.concat)
 
-let toSquare r f piece = ((File.fromInt f, Rank.fromInt r), piece)
-
 let toMap ll =
     let lengthIs8 l = List.length l = 8
     if (ll |> lengthIs8 |> not) then
@@ -66,8 +64,19 @@ let toMap ll =
         let index = 1 + List.findIndex (not << lengthIs8) ll
         failFatally $"There are some rows that have not 8 columns; the first one is #%i{index} with %i{List.item index ll |> List.length} columns"
     else
+        let files = [A; B; C; D; E; F; G; H]
+        let ranks = [
+            R8
+            R7
+            R6
+            R5
+            R4
+            R3
+            R2
+            R1
+        ]        
         ll
-        |> List.mapi (fun r -> List.mapi (fun f -> Option.map (fun piece -> ((File.fromInt f, Rank.fromInt r), piece))))
+        |> List.mapi (fun r -> List.mapi (fun f -> Option.map (fun piece -> ((files.[f], ranks.[r]), piece))))
         |> List.concat
         |> List.filterNones
         |> Map.ofList

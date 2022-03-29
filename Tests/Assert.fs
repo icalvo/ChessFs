@@ -1,12 +1,12 @@
 ﻿module Assert
-open Xunit
-open System.Collections.Generic
 
-let supersetOf (expected: seq<'T>) (actual: seq<'T>) =
-    Assert.Superset<'T>(new HashSet<'T>(expected), new HashSet<'T>(actual))
+open Expecto
 
-let contains item (actual: seq<'T>) =
-    Assert.Contains<'T>(item, new HashSet<'T>(actual))
+let supersetOf expected actual =
+    Expect.containsAll actual expected "Not contained"
+
+let contains item actual =
+    Expect.contains actual item ""
 
 let doesNotContain item (actual: seq<'T>) =
-    Assert.DoesNotContain<'T>(item, new HashSet<'T>(actual))
+    Expect.throws (fun() -> contains item actual) "Contained"

@@ -3,31 +3,33 @@
 open Utils
 open StateMachine
 
-let stateActionsFailingStateMachine initialState actions normalizeAction normalizeInput execute input =
-    let transition sa i =
-        let availableActions = sa |> actions
+let stateActionsFailingStateMachine initialState availableActions normalizeAction normalizeInput execute inputs =
+    let transition state input =
+        let availableActions = state |> availableActions
         let foundAction =
             availableActions
-            |> List.tryFind (fun x -> (x |> normalizeAction) = (i |> normalizeInput))
+            |> List.tryFind (fun action -> (normalizeAction action) = (normalizeInput input))
         match foundAction with
         | Some action -> Ok ((execute action)())
-        | None -> Error $"Could not find action %A{i}."
+        | None ->
+            let actions = availableActions |> List.map normalizeAction |> String.concat ", "
+            Error $"Could not find action {input}. Available: {actions}"
 
-    let isFinish = actions >> List.isEmpty
+    let isFinish = availableActions >> List.isEmpty
 
-    resultStateMachine transition isFinish initialState input
+    resultStateMachine transition isFinish initialState inputs
 
-let actionsTransitionIgnoring actions normalizeAction normalizeInput execute sa i =
+let actionsTransitionIgnoring availableActions normalizeAction normalizeInput execute state input =
     let foundAction =
-               sa
-               |> actions
-               |> List.tryFind (fun x -> (x |> normalizeAction) = (i |> normalizeInput))
+        state
+        |> availableActions
+        |> List.tryFind (fun action -> (normalizeAction action) = (normalizeInput input))
     match foundAction with
     | Some action -> (execute action)()
-    | None -> sa
+    | None -> state
 
-let stateActionsIgnoringStateMachine initialState actions normalizeAction normalizeInput execute input =
-    let transition = actionsTransitionIgnoring actions normalizeAction normalizeInput execute
-    let isFinish = actions >> List.isEmpty
+let stateActionsIgnoringStateMachine initialState availableActions normalizeAction normalizeInput execute inputs =
+    let transition = actionsTransitionIgnoring availableActions normalizeAction normalizeInput execute
+    let isFinish = availableActions >> List.isEmpty
 
-    stateMachine transition isFinish initialState input
+    stateMachine transition isFinish initialState inputs

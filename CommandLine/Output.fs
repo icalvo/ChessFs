@@ -45,13 +45,13 @@ let printSquare sq =
 let printBoard (b: Square[,]) color =
     let colorFunc =
         match color with
-        | White -> id
-        | Black -> Array.rev
+        | Player White -> id
+        | Player Black -> Array.rev
 
     let colorFunc2 =
         match color with
-        | White -> id
-        | Black -> Array.rev
+        | Player White -> id
+        | Player Black -> Array.rev
 
     let indexesToIterate = colorFunc [|0..7|]
 
@@ -95,8 +95,9 @@ let printOutcome outcome =
     printBoard board playerInTurn
 
     outcome |> PlayerActionOutcome.toSimplePGN |> printfn "%s"
-    if ChessState.isCheck state then
-        printfn "CHECK!"
+    match ChessState.check state with
+    | IsCheck -> printfn "CHECK!"
+    | _ -> ()
     printfn $"%A{playerInTurn} to move"
     printfn ""
     match outcome with
@@ -109,10 +110,10 @@ let printOutcome outcome =
     | WonByCheckmate (_, player) -> 
         printfn $"GAME WON by checkmating %A{player}"
         printfn ""
-    | PlayerMoved (_, availableActions, true) ->
+    | DrawOffered (_, availableActions) ->
         printfn $"DRAW OFFERED"
         printActions availableActions
-    | PlayerMoved (_, availableActions, false) ->
+    | PlayerMoved (_, availableActions) ->
         printActions availableActions
     | GameStarted (_, availableActions) -> 
         printfn "GAME STARTED"

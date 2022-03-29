@@ -11,39 +11,68 @@ module ``Chess Tests`` =
 
     [<Fact>]
     let ``Directions tests``() =
-        [A2;C8;H3] |> List.map Reach.UpRight  =! [Some B3; None; None]
+        [A2;C8;H3] |> List.map PieceReaches.UpRight  =! [Some B3; None; None]
 
     [<Fact>]
     let ``Reach generation``() =
         let normalize = List.map Seq.toList >> List.map List.sort >> List.sort
-        let normalize2 = List.map (fun (r, a) -> r |> Seq.toList |> List.sort, a) >> List.sort
+        let normalize2 = List.map (fun r -> r |> Seq.toList |> List.sort) >> List.sort
 
-        test <@ Reach.pawnDoubleMoveReaches Reach.Up C2 |> normalize = [[C3; C4]] @>
-        test <@ Reach.pawnSingleMoveReaches Reach.Up C3 |> normalize = [[C4]] @>
-        test <@ Reach.pawnCaptureReaches    Reach.Up C2 |> normalize = [[B3];[D3]] @>
+        test <@ PieceReaches.pawnDoubleMoveReaches PieceReaches.Up C2 |> normalize = [[C3; C4]] @>
+        test <@ PieceReaches.pawnSingleMoveReaches PieceReaches.Up C3 |> normalize = [[C4]] @>
+        test <@ PieceReaches.pawnCaptureReaches    PieceReaches.Up C2 |> normalize = [[B3];[D3]] @>
         test
-            <@ Reach.bishopReaches C3 |> normalize =
+            <@ PieceReaches.bishopReaches C3 |> normalize =
             [[A1; B2]; [A5; B4]; [D2; E1];[D4; E5; F6; G7; H8]]@>
         test
-            <@ Reach.rookReaches C3 |> normalize =
+            <@ PieceReaches.rookReaches C3 |> normalize =
             [[A3; B3]; [C1; C2]; [C4; C5; C6; C7; C8];[D3; E3; F3; G3; H3]]@>
         test
-            <@ Reach.pieceReaches WhitePawn C2 |> normalize2 =
-            [([B3], CaptureType); ([C3; C4], MoveType); ([D3], CaptureType)]@>
-        test <@
-                Reach.pieceReaches BlackPawn E7 |> normalize2 = [
-                    ([D6], CaptureType);
-                    ([E5; E6], MoveType);
-                    ([F6], CaptureType)]
+            <@ PieceReaches.pieceReaches WhitePawn C2 |> normalize2 = [
+                 [Move (WhitePawn, C2, C3);Move (WhitePawn, C2, C4)]
+                 [Capture (WhitePawn, C2, B3)]
+                 [Capture (WhitePawn, C2, D3)]
+            ]
+            @>
+
+        test
+            <@ PieceReaches.pieceReaches WhitePawn C7 |> normalize2 = [
+                [MoveAndPromote (White, C7, C8, Knight)];
+                [MoveAndPromote (White, C7, C8, Bishop)];
+                [MoveAndPromote (White, C7, C8, Rook)];
+                [MoveAndPromote (White, C7, C8, Queen)];
+                [CaptureAndPromote (White, C7, B8, Knight)];
+                [CaptureAndPromote (White, C7, B8, Bishop)];
+                [CaptureAndPromote (White, C7, B8, Rook)];
+                [CaptureAndPromote (White, C7, B8, Queen)];
+                [CaptureAndPromote (White, C7, D8, Knight)];
+                [CaptureAndPromote (White, C7, D8, Bishop)];
+                [CaptureAndPromote (White, C7, D8, Rook)];
+                [CaptureAndPromote (White, C7, D8, Queen)]]
+            @>
+        test
+            <@ PieceReaches.pieceReaches BlackPawn E2 |> normalize2 = [
+                [MoveAndPromote    (Black, E2, E1, Knight)];
+                [MoveAndPromote    (Black, E2, E1, Bishop)];
+                [MoveAndPromote    (Black, E2, E1, Rook)];
+                [MoveAndPromote    (Black, E2, E1, Queen)];
+                [CaptureAndPromote (Black, E2, D1, Knight)];
+                [CaptureAndPromote (Black, E2, D1, Bishop)];
+                [CaptureAndPromote (Black, E2, D1, Rook)];
+                [CaptureAndPromote (Black, E2, D1, Queen)];
+                [CaptureAndPromote (Black, E2, F1, Knight)];
+                [CaptureAndPromote (Black, E2, F1, Bishop)];
+                [CaptureAndPromote (Black, E2, F1, Rook)];
+                [CaptureAndPromote (Black, E2, F1, Queen)]]
         @>
         test <@
-                Reach.pieceReaches BlackKnight B8 |> normalize2 = [
-                    ([A6], MoveType);
-                    ([A6], CaptureType);
-                    ([C6], MoveType);
-                    ([C6], CaptureType);
-                    ([D7], MoveType);
-                    ([D7], CaptureType);
+                PieceReaches.pieceReaches BlackKnight B8 |> normalize2 = [
+                     [Move    (BlackKnight, B8, A6)]
+                     [Move    (BlackKnight, B8, C6)]
+                     [Move    (BlackKnight, B8, D7)]
+                     [Capture (BlackKnight, B8, A6)]
+                     [Capture (BlackKnight, B8, C6)]
+                     [Capture (BlackKnight, B8, D7)]
                     ]
         @>
 
@@ -51,7 +80,8 @@ module ``Chess Tests`` =
         | Ok x ->
             match x with
             | GameStarted (_, availableActions)
-            | PlayerMoved (_, availableActions, _) ->
+            | DrawOffered (_, availableActions)
+            | PlayerMoved (_, availableActions) ->
                 List.map executableActionToAlgebraic availableActions
             | _ -> List.empty
         | Error msg -> ["Invalid board: " + msg]
@@ -59,15 +89,15 @@ module ``Chess Tests`` =
     [<Fact>]
     let ``Promoting available actions``() =
         {
-            playerInTurn = White
+            playerInTurn = Player White
             pieces =
                 Map.ofList [
                     C7, WhitePawn
                     E1, WhiteKing
                     H8, BlackKing
                 ]
-            whitePlayerCastlingRights = noCastlingRights
-            blackPlayerCastlingRights = noCastlingRights
+            whitePlayerCastlingRights = CastlingRights.none
+            blackPlayerCastlingRights = CastlingRights.none
             pawnCapturableEnPassant = None
             pliesWithoutPawnOrCapture = 0
             numberOfMoves = 1
@@ -80,7 +110,7 @@ module ``Chess Tests`` =
     [<Fact>]
     let ``Capture-promoting available actions``() =
         {
-            playerInTurn = White
+            playerInTurn = Player White
             pieces =
                 Map.ofList [
                     C7, WhitePawn
@@ -88,8 +118,8 @@ module ``Chess Tests`` =
                     E1, WhiteKing
                     H8, BlackKing
                 ]
-            whitePlayerCastlingRights = noCastlingRights
-            blackPlayerCastlingRights = noCastlingRights
+            whitePlayerCastlingRights = CastlingRights.none
+            blackPlayerCastlingRights = CastlingRights.none
             pawnCapturableEnPassant = None
             pliesWithoutPawnOrCapture = 0
             numberOfMoves = 1
@@ -97,13 +127,14 @@ module ``Chess Tests`` =
         |> ChessState.fromRaw
         |> Result.bind setupStandardChessPosition
         |> availableActions
-        |> Assert.supersetOf ["c8=B"; "c8=N"; "c8=Q"; "c8=R";
-        "cxb8=B"; "cxb8=N"; "cxb8=Q"; "cxb8=R"]
+        |> Assert.supersetOf [
+            "c8=B"; "c8=N"; "c8=Q"; "c8=R";
+            "cxb8=B"; "cxb8=N"; "cxb8=Q"; "cxb8=R"]
 
     [<Fact>]
     let ``Castling not possible when intermediate squares are in check``() =
         {
-            playerInTurn = White
+            playerInTurn = Player White
             pieces =
                 Map.ofList [
                     E1, WhiteKing
@@ -112,8 +143,8 @@ module ``Chess Tests`` =
                     G8, BlackRook
                     E4, BlackKing
                 ]
-            whitePlayerCastlingRights = { canCastleKingSide = true; canCastleQueenSide = false }
-            blackPlayerCastlingRights = noCastlingRights
+            whitePlayerCastlingRights = CastlingRights.justKingside
+            blackPlayerCastlingRights = CastlingRights.none
             pawnCapturableEnPassant = None
             pliesWithoutPawnOrCapture = 0
             numberOfMoves = 1
@@ -126,7 +157,7 @@ module ``Chess Tests`` =
     [<Fact>]
     let ``Castling possible when rook attacked``() =
         {
-            playerInTurn = White
+            playerInTurn = Player White
             pieces =
                 Map.ofList [
                     E1, WhiteKing
@@ -135,8 +166,8 @@ module ``Chess Tests`` =
                     H8, BlackRook
                     E3, BlackKing
                 ]
-            whitePlayerCastlingRights = { canCastleKingSide = true; canCastleQueenSide = false }
-            blackPlayerCastlingRights = noCastlingRights
+            whitePlayerCastlingRights = CastlingRights.justKingside
+            blackPlayerCastlingRights = CastlingRights.none
             pawnCapturableEnPassant = None
             pliesWithoutPawnOrCapture = 0
             numberOfMoves = 1
@@ -149,15 +180,15 @@ module ``Chess Tests`` =
     [<Fact>]
     let ``King cannot move to check``() =
         {
-            playerInTurn = White
+            playerInTurn = Player White
             pieces =
                 Map.ofList [
                     E1, WhiteKing
                     F8, BlackRook
                     H8, BlackKing
                 ]
-            whitePlayerCastlingRights = noCastlingRights
-            blackPlayerCastlingRights = noCastlingRights
+            whitePlayerCastlingRights = CastlingRights.none
+            blackPlayerCastlingRights = CastlingRights.none
             pawnCapturableEnPassant = None
             pliesWithoutPawnOrCapture = 0
             numberOfMoves = 1
@@ -169,15 +200,14 @@ module ``Chess Tests`` =
 
     open ChessState
 
-    let internal gameStateAfterE4 =
-        ["e4"]
-        |> algebraicStringChessIgnoringStateMachine
-        |> Seq.last
-        |> PlayerActionOutcome.state
+    let throwOnError = function
+        | Ok r -> r
+        | Error x -> failwith $"{x}"
 
     let internal boardAfter =
-        algebraicStringChessIgnoringStateMachine
+        algebraicStringChessFailingStateMachine
         >> Seq.last
+        >> throwOnError
         >> PlayerActionOutcome.state
         >> board
 

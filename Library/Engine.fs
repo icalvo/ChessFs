@@ -1,8 +1,24 @@
 ﻿module Engine
 
+open System.Diagnostics
 open Utils
 open CoreTypes
 
+type Colored<'T> = {
+    white: 'T
+    black: 'T
+}
+
+module Colored =
+    let get color (c: Colored<'T>) =
+        match color with
+        | White ->  c.white
+        | Black ->  c.black
+    let update color item (c: Colored<'T>) =
+        match color with
+        | White ->  {c with white = item }
+        | Black ->  {c with black = item }
+        
 type Piece = Piece of Color * Shape
 
 let WhitePawn = Piece (White, Pawn)
@@ -18,18 +34,157 @@ let BlackRook = Piece (Black, Rook)
 let BlackQueen = Piece (Black, Queen)
 let BlackKing = Piece (Black, King)
 
-type PlyType =
-    | MoveType
-    | CaptureType
-    | EnPassantType
-    | CastleKingSideType
-    | CastleQueenSideType
-    | MoveAndPromoteType
-    | CaptureAndPromoteType
+module Piece =
+    let color (Piece (color, _)) = color
+    let shape (Piece (_, shape)) = shape
 
-type Reach = seq<Coordinate> list
+type BoardChange =
+    | MovePiece of Coordinate * Coordinate
+    | RemovePiece of Coordinate
+    | AddPiece of Color * Shape * Coordinate
 
-module Reach =
+/// <summary>
+/// A ply represents a piece move made by one of the players.
+/// </summary>
+type Ply =
+    | Move of Piece * Coordinate * Coordinate
+    | Capture of Piece * Coordinate * Coordinate
+    | CaptureEnPassant of Color * Coordinate * Coordinate
+    | CastleKingSide of Color
+    | CastleQueenSide of Color
+    | MoveAndPromote of Color * Coordinate * Coordinate * Shape
+    | CaptureAndPromote of Color * Coordinate * Coordinate * Shape
+
+module Ply =
+    
+    type PlyConstructor = Coordinate -> Piece -> Coordinate -> Ply
+
+    let move src (Piece (color, sh)) tgt =
+        let p = Piece (color, sh)
+        Move (p, src, tgt)
+
+    let capture src (Piece (color, sh)) tgt =
+        let p = Piece (color, sh)
+        Capture (p, src, tgt)
+
+    let captureEnPassant src (Piece (color, _)) tgt =
+        CaptureEnPassant (color, src, tgt)
+
+    let castleKingSide _ (Piece (color, _)) _ =
+        CastleKingSide color
+
+    let castleQueenSide _ (Piece (color, _)) _ =
+        CastleQueenSide color
+
+    let moveAndPromote shape src (Piece (color, _)) tgt =
+        MoveAndPromote (color, src, tgt, shape)
+            
+    let captureAndPromote shape src (Piece (color, _)) tgt =
+        CaptureAndPromote (color, src, tgt, shape)
+
+    let sameType one other =
+        match one, other with
+        | Move _, Move _
+        | Capture _, Capture _
+        | CaptureEnPassant _, CaptureEnPassant _
+        | CastleKingSide _, CastleKingSide _
+        | CastleQueenSide _, CastleQueenSide _
+        | MoveAndPromote _, MoveAndPromote _
+        | CaptureAndPromote _, CaptureAndPromote _ -> true
+        | _ -> false
+
+    let isCapture = function
+        | Capture _
+        | CaptureAndPromote _
+        | CaptureEnPassant _ -> true
+        | _ -> false
+    let source = function
+        | Move (_, source, _) -> source
+        | Capture (_, source, _) -> source
+        | CaptureEnPassant (_, source, _) -> source
+        | CastleKingSide White
+        | CastleQueenSide White -> E1
+        | CastleKingSide Black
+        | CastleQueenSide Black -> E8
+        | MoveAndPromote (_, source, _, _) -> source
+        | CaptureAndPromote (_, source, _, _) -> source
+    let target = function
+        | Move (_, _, target) -> target
+        | Capture (_, _, target) -> target
+        | CaptureEnPassant (_, _, target) -> target
+        | CastleKingSide White -> G1
+        | CastleQueenSide White -> C1
+        | CastleKingSide Black -> G8
+        | CastleQueenSide Black -> C8
+        | MoveAndPromote (_, _, target, _) -> target
+        | CaptureAndPromote (_, _, target, _) -> target
+    let color = function
+        | Move (Piece (color, _), _, _) -> color
+        | Capture (Piece(color, _), _, _) -> color
+        | CaptureEnPassant (color, _, _) -> color
+        | CastleKingSide color -> color
+        | CastleQueenSide color -> color
+        | MoveAndPromote (color, _, _, _) -> color
+        | CaptureAndPromote (color, _, _, _) -> color
+    let equivalentMove = function
+        | Move (Piece (color, shape), s, t) -> Move (Piece (color, shape), s, t)
+        | Capture (Piece(color, shape), s, t) -> Move (Piece (color, shape), s, t)
+        | CaptureEnPassant (color, s, t) -> Move (Piece (color, Pawn), s, t)
+        | CastleKingSide color -> Move (Piece (color, King), (match color with | White -> E1 | Black -> E8), (match color with | White -> G1 | Black -> G8))
+        | CastleQueenSide color -> Move (Piece (color, King), (match color with | White -> E1 | Black -> E8), (match color with | White -> C1 | Black -> C8))
+        | MoveAndPromote (color, s, t, _) -> Move (Piece (color, Pawn), s, t)
+        | CaptureAndPromote (color, s, t, _) -> Move (Piece (color, Pawn), s, t)
+    let shape = function
+        | Move (Piece (_, shape), _, _) -> shape
+        | Capture (Piece(_, shape), _, _) -> shape
+        | CaptureEnPassant _ -> Pawn
+        | CastleKingSide _ -> King
+        | CastleQueenSide _ -> King
+        | MoveAndPromote _ -> Pawn
+        | CaptureAndPromote _ -> Pawn
+    let boardChanges = function
+        | Move (_, source, target) -> [
+                MovePiece (source, target)
+            ]
+        | Capture (_, source, target) -> [
+            RemovePiece target;
+            MovePiece (source, target)]
+        | CaptureEnPassant (_, source, target) -> [
+            let coordinateOfCapturedPawn = (file target, rank source)
+            RemovePiece coordinateOfCapturedPawn
+            MovePiece (source, target)]
+        | CastleKingSide White -> [
+                MovePiece (E1, G1);
+                MovePiece (H1, F1)
+            ]
+        | CastleQueenSide White -> [
+                MovePiece (E1, C1);
+                MovePiece (A1, D1)
+            ]
+        | CastleKingSide Black -> [
+                MovePiece (E8, G8);
+                MovePiece (H8, F8)
+            ]
+        | CastleQueenSide Black -> [
+                MovePiece (E8, C8);
+                MovePiece (A8, D8)
+            ]
+        | MoveAndPromote (color, source, target, shape) -> [
+                RemovePiece source;
+                AddPiece (color, shape, target)
+            ]
+        | CaptureAndPromote (color, source, target, shape) -> [
+                RemovePiece source;
+                AddPiece (color, shape, target)
+            ]
+
+type PieceReach = seq<Coordinate>
+
+type PieceReaches = seq<Coordinate> list
+
+module PieceReaches =
+    open Ply
+
     // Directions
     let Up        = Rank.next
     let UpRight   = File.next >?> Rank.next
@@ -40,28 +195,28 @@ module Reach =
     let Left      = File.prev
     let UpLeft    = File.prev >?> Rank.next
 
-    let bishopReaches coordinate: Reach =
+    let bishopReaches coordinate: PieceReaches =
         [ UpRight; DownRight; DownLeft; UpLeft ]
         |> List.map Seq.unfoldSimple
         |> List.apply coordinate
 
-    let rookReaches coordinate: Reach =
+    let rookReaches coordinate: PieceReaches =
         [ Up; Right; Down; Left ]
         |> List.map Seq.unfoldSimple
         |> List.apply coordinate
 
-    let queenReaches coordinate: Reach =
+    let queenReaches coordinate: PieceReaches =
         [ bishopReaches; rookReaches ]
         |> List.apply coordinate
         |> List.concat
 
-    let kingReaches coordinate: Reach =
+    let kingReaches coordinate: PieceReaches =
         [ UpRight; DownRight; DownLeft; UpLeft; Up; Right; Down; Left ]
         |> List.apply coordinate
         |> List.filterNones
         |> List.map Seq.singleton
 
-    let knightReaches coordinate: Reach =
+    let knightReaches coordinate: PieceReaches =
         [
             Up >?> Up >?> Left;
             Up >?> Up >?> Right;
@@ -76,17 +231,17 @@ module Reach =
         |> List.filterNones
         |> List.map Seq.singleton
 
-    let pawnSingleMoveReaches pawnDirection coordinate: Reach =
+    let pawnSingleMoveReaches pawnDirection coordinate: PieceReaches =
         match pawnDirection coordinate with
         | Some newCoord -> newCoord |> Seq.singleton |> List.singleton
         | None -> []
 
-    let pawnDoubleMoveReaches pawnDirection coordinate: Reach =
+    let pawnDoubleMoveReaches pawnDirection coordinate: PieceReaches =
         Seq.unfoldSimple pawnDirection coordinate
         |> Seq.take 2
         |> List.singleton
 
-    let pawnCaptureReaches pawnDirection coordinate: Reach =
+    let pawnCaptureReaches pawnDirection coordinate: PieceReaches =
         [
             pawnDirection >?> Left;
             pawnDirection >?> Right;
@@ -95,13 +250,13 @@ module Reach =
         |> List.filterNones
         |> List.map Seq.singleton
 
-    let kingCastleToKingReach castlingDirection coordinate: Reach =
+    let kingCastleToKingReach castlingDirection coordinate: PieceReaches =
         [ castlingDirection * 2; ]
         |> List.apply coordinate
         |> List.filterNones
         |> List.map Seq.singleton
 
-    let kingCastleToQueenReach castlingDirection coordinate: Reach =
+    let kingCastleToQueenReach castlingDirection coordinate: PieceReaches =
         [ castlingDirection * 3; ]
         |> List.apply coordinate
         |> List.filterNones
@@ -114,11 +269,11 @@ module Reach =
         | RegularRank
 
     let pieceReaches piece coordinate =
-        let applyReaches (reachesFunc, act: PlyType) =
+        let applyReaches (reachesFunc: Coordinate -> PieceReaches, act: PlyConstructor) =
             coordinate
             |> reachesFunc
             |> List.where (not << Seq.isEmpty)
-            |> List.map (fun reach -> (reach, act))
+            |> List.map (Seq.map (act coordinate piece))
 
         let collectReaches = List.collect applyReaches
 
@@ -136,57 +291,54 @@ module Reach =
 
             match pawnRankType with
             | PromotionRank ->
-                collectReaches [
-                    (pawnSingleMoveReaches direction, MoveAndPromoteType);
-                    (pawnCaptureReaches    direction, CaptureAndPromoteType)]
+                let plyAndReachesFuncs = [
+                    moveAndPromote, pawnSingleMoveReaches
+                    captureAndPromote, pawnCaptureReaches 
+                ]
+                let promotionShapes = [ Queen; Rook; Knight; Bishop ]
+
+                promotionShapes
+                |> List.allPairs plyAndReachesFuncs
+                |> List.map (fun ((plyFunc, reachesFunc), promotionShape) -> reachesFunc direction, plyFunc promotionShape)
+                |> List.collect applyReaches
             | EnPassantRank ->
                 collectReaches [
-                    (pawnSingleMoveReaches direction, MoveType);
-                    (pawnCaptureReaches    direction, CaptureType);
-                    (pawnCaptureReaches    direction, EnPassantType)]
+                    pawnSingleMoveReaches direction, move
+                    pawnCaptureReaches    direction, capture
+                    pawnCaptureReaches    direction, captureEnPassant]
             | DoubleMoveRank ->
                 collectReaches [
-                    (pawnDoubleMoveReaches direction, MoveType   );
-                    (pawnCaptureReaches    direction, CaptureType);
+                    pawnDoubleMoveReaches direction, move
+                    pawnCaptureReaches    direction, capture
                 ]
             | RegularRank ->
                 collectReaches [
-                    (pawnSingleMoveReaches direction, MoveType   );
-                    (pawnCaptureReaches    direction, CaptureType);
+                    pawnSingleMoveReaches direction, move
+                    pawnCaptureReaches    direction, capture
                 ]
-        | Piece (_, Knight) ->
-            collectReaches [
-                (knightReaches, MoveType);
-                (knightReaches, CaptureType)
-            ]
-        | Piece (_, Bishop) ->
-            collectReaches [
-                (bishopReaches, MoveType);
-                (bishopReaches, CaptureType)
-            ]
-        | Piece (_, Rook  ) ->
-            collectReaches [
-                (rookReaches, MoveType);
-                (rookReaches, CaptureType)
-            ]
+        | Piece (_, Knight)
+        | Piece (_, Bishop)
+        | Piece (_, Rook  )
         | Piece (_, Queen ) ->
+                let reachesFunc =
+                    match Piece.shape piece with
+                    | Knight -> knightReaches
+                    | Bishop -> bishopReaches
+                    | Rook -> rookReaches
+                    | Queen -> queenReaches
+                    | _ -> fun _ -> []
+
+                [ move; capture ]
+                |> List.map (fun plyFunc -> reachesFunc, plyFunc)
+                |> List.collect applyReaches            
+        | Piece (color, King  ) ->
+            let kingSideDirection = match color with | White -> Right | Black -> Left;
+            let queenSideDirection = match color with | White -> Left | Black -> Right;
             collectReaches [
-                (queenReaches, MoveType);
-                (queenReaches, CaptureType)
-            ]
-        | Piece (White, King  ) ->
-            collectReaches [
-                (kingReaches, MoveType);
-                (kingReaches, CaptureType);
-                (kingCastleToKingReach  Right, CastleKingSideType);
-                (kingCastleToQueenReach Left , CastleQueenSideType)
-            ]
-        | Piece (Black, King  ) ->
-            collectReaches [
-                (kingReaches, MoveType);
-                (kingReaches, CaptureType);
-                (kingCastleToKingReach  Left , CastleKingSideType);
-                (kingCastleToQueenReach Right, CastleQueenSideType)
+                (kingReaches, move)
+                (kingReaches, capture)
+                (kingCastleToKingReach  kingSideDirection , castleKingSide)
+                (kingCastleToQueenReach queenSideDirection, castleQueenSide)
             ]
 
 let opposite = function
@@ -228,101 +380,6 @@ let squareAt coordinate placedPieces =
 
 let (@@) placedPieces coordinate = squareAt coordinate placedPieces
 
-type BoardChange =
-    | MovePiece of Coordinate * Coordinate
-    | RemovePiece of Coordinate
-    | AddPiece of Color * Shape * Coordinate
-
-/// <summary>
-/// A ply represents a piece move made by one of the players.
-/// </summary>
-type Ply =
-    | Move of Piece * Coordinate * Coordinate
-    | Capture of Piece * Coordinate * Coordinate
-    | CaptureEnPassant of Color * Coordinate * Coordinate
-    | CastleKingSide of Color
-    | CastleQueenSide of Color
-    | Promote of Color * Coordinate * Coordinate * Shape
-    | CaptureAndPromote of Color * Coordinate * Coordinate * Shape
-
-module Ply =
-    let plyType = function
-        | Move _ -> MoveType
-        | Capture _ -> CaptureType
-        | CaptureEnPassant _ -> EnPassantType
-        | CastleKingSide _ -> CastleKingSideType
-        | CastleQueenSide _ -> CastleQueenSideType
-        | Promote _ -> MoveAndPromoteType
-        | CaptureAndPromote _ -> CaptureAndPromoteType
-    let isCapture = function
-        | Capture _
-        | CaptureAndPromote _
-        | CaptureEnPassant _ -> true
-        | _ -> false
-    let source = function
-        | Move (_, source, _) -> source
-        | Capture (_, source, _) -> source
-        | CaptureEnPassant (_, source, _) -> source
-        | CastleKingSide White
-        | CastleQueenSide White -> E1
-        | CastleKingSide Black
-        | CastleQueenSide Black -> E8
-        | Promote (_, source, _, _) -> source
-        | CaptureAndPromote (_, source, _, _) -> source
-    let target = function
-        | Move (_, _, target) -> target
-        | Capture (_, _, target) -> target
-        | CaptureEnPassant (_, _, target) -> target
-        | CastleKingSide White -> G1
-        | CastleQueenSide White -> C1
-        | CastleKingSide Black -> G8
-        | CastleQueenSide Black -> C8
-        | Promote (_, _, target, _) -> target
-        | CaptureAndPromote (_, _, target, _) -> target
-    let shape = function
-        | Move (Piece (_, shape), _, _) -> shape
-        | Capture (Piece(_, shape), _, _) -> shape
-        | CaptureEnPassant _ -> Pawn
-        | CastleKingSide _ -> King
-        | CastleQueenSide _ -> King
-        | Promote _ -> Pawn
-        | CaptureAndPromote _ -> Pawn
-    let boardChanges = function
-        | Move (_, source, target) -> [
-                MovePiece (source, target)
-            ]
-        | Capture (_, source, target) -> [
-            RemovePiece target;
-            MovePiece (source, target)]
-        | CaptureEnPassant (_, source, target) -> [
-            let coordinateOfCapturedPawn = (file target, rank source)
-            RemovePiece coordinateOfCapturedPawn
-            MovePiece (source, target)]
-        | CastleKingSide White -> [
-                MovePiece (E1, G1);
-                MovePiece (H1, F1)
-            ]
-        | CastleQueenSide White -> [
-                MovePiece (E1, C1);
-                MovePiece (A1, D1)
-            ]
-        | CastleKingSide Black -> [
-                MovePiece (E8, G8);
-                MovePiece (H8, F8)
-            ]
-        | CastleQueenSide Black -> [
-                MovePiece (E8, C8);
-                MovePiece (A8, D8)
-            ]
-        | Promote (color, source, target, shape) -> [
-                RemovePiece source;
-                AddPiece (color, shape, target)
-            ]
-        | CaptureAndPromote (color, source, target, shape) -> [
-                RemovePiece source;
-                AddPiece (color, shape, target)
-            ]
-
 let coordinateOfCapturedPiece = function
     | Capture (_, _, target)
     | CaptureAndPromote (_, _, target, _) -> Some target
@@ -344,12 +401,13 @@ type CastlingRights = {
 module CastlingRights =
     let canCastleKingSide (cr: CastlingRights) = cr.canCastleKingSide
     let canCastleQueenSide (cr: CastlingRights) = cr.canCastleQueenSide
-
-let bothWaysCastlingRights = { canCastleKingSide = true; canCastleQueenSide = true }
-let noCastlingRights = { canCastleKingSide = false; canCastleQueenSide = false }
+    let justKingside = { canCastleKingSide = true; canCastleQueenSide = false }
+    let justQueenside = { canCastleKingSide = false; canCastleQueenSide = true }
+    let bothWays = { canCastleKingSide = true; canCastleQueenSide = true }
+    let none = { canCastleKingSide = false; canCastleQueenSide = false }
 
 type RepetitionState = {
-    turn: Color
+    turn: Player
     whitePlayerCastlingRights: CastlingRights
     blackPlayerCastlingRights: CastlingRights
     pawnCapturableEnPassant: Coordinate option
@@ -359,15 +417,34 @@ type RepetitionState = {
 /// <summary>
 /// A ply produces an output that can be a check, a checkmate, or none (regular ply).
 /// </summary>
+
+type CheckStatus =
+    | IsCheck
+    | NoCheck
+
+module CheckStatus =
+    let create =
+        function
+        | true -> IsCheck
+        | false -> NoCheck
+    let not =
+        function
+        | IsCheck -> false
+        | NoCheck -> true
+
+type DrawOfferStatus =
+    | IsDrawOffer
+    | NoDrawOffer
+
 type PlyOutput = {
     ply: Ply
-    isCheck: bool
+    checkStatus: CheckStatus
     restOfPlies: Ply list
-    drawOffer: bool
+    drawOffer: DrawOfferStatus
 }
 
-let CheckPly (ply, restOfPlies, drawOffer) = { ply = ply; restOfPlies = restOfPlies; isCheck = true; drawOffer = drawOffer }
-let RegularPly (ply, restOfPlies, drawOffer) = { ply = ply; restOfPlies = restOfPlies; isCheck = false; drawOffer = drawOffer }
+let CheckPly (ply, restOfPlies, drawOffer) = { ply = ply; restOfPlies = restOfPlies; checkStatus = IsCheck; drawOffer = drawOffer }
+let RegularPly (ply, restOfPlies, drawOffer) = { ply = ply; restOfPlies = restOfPlies; checkStatus = NoCheck; drawOffer = drawOffer }
 
 type RawChessState = {
     playerInTurn: Player
@@ -399,14 +476,15 @@ type ChessState = internal {
     pliesWithoutPawnOrCapture: int
     repeatableStates: RepetitionState list
     numberOfMoves: int
+    kings: Colored<Coordinate>
 }
 
 // custom check - compare against CustomerId only
 with
     member this.currentPlayerCastlingRights = 
         match this.playerInTurn with
-        | White -> this.whitePlayerCastlingRights
-        | Black -> this.blackPlayerCastlingRights
+        | Player White -> this.whitePlayerCastlingRights
+        | Player Black -> this.blackPlayerCastlingRights
     member this.repeatableState: RepetitionState = {
         turn = this.playerInTurn
         whitePlayerCastlingRights = this.whitePlayerCastlingRights
@@ -418,7 +496,19 @@ with
         this.repeatableStates
         |> List.where (fun r -> this.repeatableState = r)
         |> List.length
-    member this.board = Array2D.init 8 8 (fun r f -> squareAt (File.fromInt f, Rank.fromInt r) this.pieces)
+    member this.board =
+        let files = [A; B; C; D; E; F; G; H]
+        let ranks = [
+            R8
+            R7
+            R6
+            R5
+            R4
+            R3
+            R2
+            R1
+        ]        
+        Array2D.init 8 8 (fun r f -> squareAt (files.[f], ranks.[r]) this.pieces)
     member this.moves = List.rev this.plies
     member this.toRaw = {
         pieces = this.pieces
@@ -435,96 +525,160 @@ with
         | :? ChessState as p -> p.toRaw.Equals this.toRaw
         | _ -> false
     override this.GetHashCode () = this.toRaw.GetHashCode()
-
-
+    
 let internal (@@@) game coordinate = squareAt coordinate game.pieces
 
-/// <summary>
-/// Generates plies from a ply type, a piece, and a source and target coordinates.
-/// </summary>
-/// <remarks>
-/// In general, a single ply is generated. However, when there is a promotion, there
-/// are 4 possible plies, one for each kind of promoted piece (=Q, =R, =B & =N).
-/// </remarks>
-let toPlies src (Piece (color, sh), plyType, tgt) =
-    let p = Piece (color, sh)
-    match plyType with
-    | MoveType -> [ Move (p, src, tgt) ]
-    | CaptureType -> [ Capture (p, src, tgt) ]
-    | EnPassantType -> [ CaptureEnPassant (color, src, tgt) ]
-    | CastleKingSideType -> [ CastleKingSide color ]
-    | CastleQueenSideType -> [ CastleQueenSide color ]
-    | MoveAndPromoteType -> [ Queen; Rook; Bishop; Knight ] |> List.map (fun shape -> Promote (color, src, tgt, shape))
-    | CaptureAndPromoteType -> [ Queen; Rook; Bishop; Knight ] |> List.map (fun shape -> CaptureAndPromote (color, src, tgt, shape))
+type ChessState with
+    member this.king player =
+        match player with
+        | Player color -> this.kings |> Colored.get color
 
 /// <summary>
 /// Can the ply type be legally executed for a piece with a given target coordinate?
 /// </summary>
-let internal canExecute game sourcePiece targetCoordinate plyType =
-    let targetSquare = game @@@ targetCoordinate
+let internal executeReason game ply =
+    seq {            
+        let plyColor = Ply.color ply
+        let targetCoordinate = Ply.target ply
+        let targetSquare = game @@@ targetCoordinate
+        let differentColor color square =
+            match Square.pieceColor square with
+            | Some White -> color = Black
+            | Some Black -> color = White
+            | None -> true
 
-    match plyType with
-    | MoveType | MoveAndPromoteType ->
+        match ply with
+        | Move _ | MoveAndPromote _ ->
+            if targetSquare |> (not << Square.isEmpty) then yield $"Cannot move to the occupied square %A{targetSquare}"
+        | Capture _ | CaptureAndPromote _ ->
+            if not (Square.hasPiece targetSquare) then yield "Cannot capture an empty square"
+            if not (differentColor plyColor targetSquare) then yield "Cannot capture own pieces"
+        | CaptureEnPassant _ ->
+            match game.pawnCapturableEnPassant with
+            | Some capturable -> if not (capturable = targetCoordinate) then yield "Cannot capture en passant if the target is not the enabled pawn" 
+            | None -> yield "Cannot capture en passant if there is no enabled pawn"
+        | CastleKingSide color ->
+            match color with
+            | White ->
+                if not game.whitePlayerCastlingRights.canCastleKingSide then yield "Right to castle kingside is lost"
+                if game @@@ F1 |> (not << Square.isEmpty) then yield "F1 is not empty" 
+                if game @@@ G1 |> (not << Square.isEmpty) then yield "G1 is not empty"
+            | Black ->
+                if not game.whitePlayerCastlingRights.canCastleKingSide then yield "Right to castle kingside is lost"
+                if game @@@ F8 |> (not << Square.isEmpty) then yield "F1 is not empty" 
+                if game @@@ G1 |> (not << Square.isEmpty) then yield "G1 is not empty"
+                if not game.blackPlayerCastlingRights.canCastleKingSide then yield "Right to castle kingside is lost"
+                if game @@@ F8 |> (not << Square.isEmpty) then yield "F8 is not empty"
+                if game @@@ G8 |> (not << Square.isEmpty) then yield "G8 is not empty" 
+        | CastleQueenSide color ->
+            match color with
+            | White ->
+                if not game.whitePlayerCastlingRights.canCastleQueenSide then yield "Right to castle queenside is lost"
+                if game @@@ B1 |> (not << Square.isEmpty) then yield "B1 is not empty" 
+                if game @@@ C1 |> (not << Square.isEmpty) then yield "C1 is not empty" 
+                if game @@@ D1 |> (not << Square.isEmpty) then yield "D1 is not empty" 
+            | Black ->
+                if not game.blackPlayerCastlingRights.canCastleQueenSide then yield "Right to castle queenside is lost"
+                if game @@@ B8 |> (not << Square.isEmpty) then yield "B8 is not empty" 
+                if game @@@ C8 |> (not << Square.isEmpty) then yield "C8 is not empty" 
+                if game @@@ D8 |> (not << Square.isEmpty) then yield "D8 is not empty" 
+    }
+
+/// <summary>
+/// Can the ply type be legally executed for a piece with a given target coordinate?
+/// </summary>
+let internal canExecute game ply =
+    let plyColor = Ply.color ply
+    let targetCoordinate = Ply.target ply
+    let targetSquare = game @@@ targetCoordinate
+    let differentColor color square =
+        match Square.pieceColor square with
+        | Some White -> color = Black
+        | Some Black -> color = White
+        | None -> true
+
+    let areAllTrueFor arg = Array.forall ((|>) arg)
+
+    match ply with
+    | Move _ | MoveAndPromote _ ->
         targetSquare |> Square.isEmpty
-    | CaptureType | CaptureAndPromoteType ->
-        targetSquare |> Square.hasPiece &&
-        targetSquare |> (differentColor sourcePiece)
-    | EnPassantType ->
+    | Capture _ | CaptureAndPromote _ ->
+        [| Square.hasPiece; differentColor plyColor |]
+        |> areAllTrueFor targetSquare
+    | CaptureEnPassant _ ->
         match game.pawnCapturableEnPassant with
         | Some capturable -> capturable = targetCoordinate
         | None -> false
-    | CastleKingSideType ->
-        match sourcePiece with
-        | Piece (White, King) ->
+    | CastleKingSide color ->
+        match color with
+        | White ->
             game.whitePlayerCastlingRights.canCastleKingSide &&
             game @@@ F1 |> Square.isEmpty &&
             game @@@ G1 |> Square.isEmpty
-        | Piece (Black, King) ->
+        | Black ->
             game.blackPlayerCastlingRights.canCastleKingSide &&
             game @@@ F8 |> Square.isEmpty &&
             game @@@ G8 |> Square.isEmpty
-        | _ -> false
-    | CastleQueenSideType ->
-        match sourcePiece with
-        | Piece (White, King) ->
+    | CastleQueenSide color ->
+        match color with
+        | White ->
             game.whitePlayerCastlingRights.canCastleQueenSide &&
             game @@@ B1 |> Square.isEmpty &&
             game @@@ C1 |> Square.isEmpty &&
             game @@@ D1 |> Square.isEmpty
-        | Piece (Black, King) ->
+        | Black ->
             game.blackPlayerCastlingRights.canCastleQueenSide &&
             game @@@ B8 |> Square.isEmpty &&
             game @@@ C8 |> Square.isEmpty &&
             game @@@ D8 |> Square.isEmpty
-        | _ -> false
 
-let internal evaluateReachSquare game plyTypeToTest piece targetCoordinate =
-    let canDoPlyType = canExecute game piece targetCoordinate plyTypeToTest
-    let canMove = canExecute game piece targetCoordinate MoveType
-    if canDoPlyType then Some (piece, plyTypeToTest, targetCoordinate)
-    // Even if the ply type cannot be executed, if you can move to the
-    // target coordinate we still return something, so that the ply type
-    // is evaluated further in the same reach.
-    elif canMove then Some (piece, MoveType, targetCoordinate)
-    else None
+type internal ReachStep =
+    | PossiblePly of Ply
+    | PossibleFinalPly of Ply
+    | Intermediate
+    | Impossible
 
-let internal reachCapabilities game piece (plyTypeToAnalyze: PlyType) reach =
-    let actionIs plyTypeToCheck = function
-        | Some (_, plyType, _) -> plyType = plyTypeToCheck
-        | _ -> false
+module internal ReachStep =
+    let ply = function | PossiblePly p | PossibleFinalPly p -> Some p | _ -> None
+    let isFinal = function | Impossible | PossibleFinalPly _ -> true | _ -> false
 
-    reach
-    |> Seq.map (evaluateReachSquare game plyTypeToAnalyze piece)
-    |> Seq.takeWhileIncludingLast (actionIs MoveType)
-    |> Seq.where (actionIs plyTypeToAnalyze)
+let internal evaluateReachSquare game ply =
+    let canDoPlyType = canExecute game ply
+    let movePly = Ply.equivalentMove ply
+    let canMove = canExecute game movePly
+    if canDoPlyType then
+        if Ply.isCapture ply then
+            PossibleFinalPly ply
+        else
+            PossiblePly ply
+    // Even if the ply cannot be executed in the current target coordinate, if you can move through it we will
+    // consider it an intermediate step that can still let us get to a good target square for the ply.
+    elif canMove then
+        Intermediate
+    else
+        Impossible
+
+let internal reachCapabilities game plies =
+    let first = plies |> Seq.head
+    
+    let shape = first |> Ply.shape
+    let color = first |> Ply.color
+    let source = first |> Ply.source
+    let isCapture = first |> Ply.isCapture
+    if source = H5 && shape = Queen && color = White && isCapture then
+        Debugger.Break()
+    
+    plies
+    |> Seq.map (evaluateReachSquare game)
+    |> Seq.takeWhileIncludingLast (not << ReachStep.isFinal)
+    |> Seq.map ReachStep.ply
     |> Seq.filterNones
 
 /// <summary>Legal plies for a piece (without taking into account the
 /// out-of-check rule).</summary>
 let internal pieceCapabilitiesWithoutCheckFilter game piece sourceCoordinate =
-    Reach.pieceReaches piece sourceCoordinate
-    |> Seq.collect (fun (reach, plyType) -> reachCapabilities game piece plyType reach)
-    |> Seq.collect (toPlies sourceCoordinate)
+    let pieceReaches = PieceReaches.pieceReaches piece sourceCoordinate
+    pieceReaches |> Seq.collect (reachCapabilities game)
 
 /// <summary>Coordinates attacked by a piece.</summary>
 let internal attacksBy game (coordinate, piece) =
@@ -533,16 +687,18 @@ let internal attacksBy game (coordinate, piece) =
     |> Seq.filterNones
 
 /// <summary>Coordinates attacked by a player.</summary>
-let internal attacks playerColor game =
+let internal attacks target playerColor game =
+//    let allReaches = [ PieceReaches.queenReaches; PieceReaches.knightReaches ]
+//    let potentialAttackSources = allReaches |> List.collect (fun x -> x target) |> List.collect Seq.toList
     game.pieces
-    |> Map.filter (fun _ (Piece (pieceColor, _)) -> pieceColor = playerColor)
+    |> Map.filter (fun pos (Piece (pieceColor, _)) -> pieceColor = playerColor)
     |> Map.toSeq
     |> Seq.collect (attacksBy game)
 
 /// <summary>Is the coordinate attacked by a player?</summary>
 let internal isAttackedBy playerColor game targetCoordinate =
     game
-    |> attacks playerColor
+    |> attacks targetCoordinate playerColor
     |> Seq.contains targetCoordinate
 
 /// <summary>Executes a board change (unchecked).</summary>
@@ -567,17 +723,22 @@ let private rawBoardChange pieces boardChange =
         |> Map.remove coordinate
         |> Map.add coordinate (Piece (col, shp))
 
-let opponent = opposite
+let opponent (Player playerColor) = Player (opposite playerColor)
 
 /// <summary>Is the player in check?</summary>
-let internal isCheck playerColor game =
-    let possibleKingCoordinate = game.pieces |> Map.tryFindKey (fun _ piece -> piece = Piece (playerColor, King))
-    match possibleKingCoordinate with
-    | Some kingCoordinate -> isAttackedBy (opponent playerColor) game kingCoordinate
-    | None -> false
+let internal isCheck player (game: ChessState) =
+    let (Player playerColor) = player
+    let kingCoordinate = game.king player
+    let result = isAttackedBy (opposite playerColor) game kingCoordinate |> CheckStatus.create
+    match result with
+    | IsCheck ->
+        printfn "Check??"
+    | _ -> ()
+       
+    result
 
 type ChessState with
-    member this.isCheck = isCheck this.playerInTurn this
+    member this.check = isCheck this.playerInTurn this
 
 let private rawExecutePly ply pieces =
     ply
@@ -627,7 +788,14 @@ let internal nextGameState ply restOfPlies drawOffer gameState =
         | _ -> false
 
     let hasStructureChanged = Ply.isCapture ply || Ply.shape ply = Pawn
+    let nextKingPosition =
+        match ply with
+        | Move(Piece (color, King), _, target)
+        | Capture(Piece (color, King), _, target) -> gameState.kings |> Colored.update color target
+        | _ -> gameState.kings
+
     let nextGameStateTemp = {
+        kings = nextKingPosition
         playerInTurn = opponent gameState.playerInTurn
         pieces = gameState.pieces |> rawExecutePly ply
         pawnCapturableEnPassant =
@@ -658,8 +826,8 @@ let internal nextGameState ply restOfPlies drawOffer gameState =
         repeatableStates = if hasStructureChanged then [] else gameState.repeatableState :: gameState.repeatableStates
         numberOfMoves =
             match gameState.playerInTurn with
-            | White -> gameState.numberOfMoves
-            | Black -> gameState.numberOfMoves + 1
+            | Player White -> gameState.numberOfMoves
+            | Player Black -> gameState.numberOfMoves + 1
     }
 
     let isInCheck = isCheck nextGameStateTemp.playerInTurn nextGameStateTemp
@@ -667,7 +835,7 @@ let internal nextGameState ply restOfPlies drawOffer gameState =
     let newPlyOutput = {
         ply = ply
         restOfPlies = restOfPlies
-        isCheck = isInCheck
+        checkStatus = isInCheck
         drawOffer = drawOffer
     }
     { nextGameStateTemp with
@@ -676,8 +844,8 @@ let internal nextGameState ply restOfPlies drawOffer gameState =
 
 let internal pieceCapabilities game (piece, sourceCoordinate) =
     let checkFilter ply =
-        nextGameState ply [] false game
-        |> (not << isCheck game.playerInTurn)
+        nextGameState ply [] NoDrawOffer game
+        |> (CheckStatus.not << isCheck game.playerInTurn)
 
     pieceCapabilitiesWithoutCheckFilter game piece sourceCoordinate
     |> Seq.where checkFilter
@@ -696,25 +864,27 @@ type DrawType =
 /// </summary>
 type PlayerActionOutcome =
     | GameStarted of ChessState * ExecutableAction list
-    | PlayerMoved of ChessState * ExecutableAction list * bool
-    | WonByCheckmate of ChessState * Color
-    | LostByResignation of ChessState * Color
+    | DrawOffered of ChessState * ExecutableAction list
+    | PlayerMoved of ChessState * ExecutableAction list
+    | WonByCheckmate of ChessState * Player
+    | LostByResignation of ChessState * Player
     | Draw of ChessState * DrawType
 
 and ExecutableAction = PlayerAction * (unit -> PlayerActionOutcome)
 
 and PlayerAction =
-    | MovePiece of Ply * Ply list * bool
+    | MovePiece of Ply * Ply list * DrawOfferStatus
     | Resign
     | AcceptDraw
 
 module PlayerActionOutcome =
     let state = function
-        | Draw (state, _) -> state
-        | LostByResignation (state, _) -> state
-        | WonByCheckmate (state, _) -> state
-        | GameStarted (state, _) -> state
-        | PlayerMoved (state, _, _) -> state
+        | Draw (state, _)
+        | LostByResignation (state, _)
+        | WonByCheckmate (state, _)
+        | GameStarted (state, _)
+        | PlayerMoved (state, _)
+        | DrawOffered (state, _) -> state
 
     let actions = function
         | Draw _
@@ -722,19 +892,20 @@ module PlayerActionOutcome =
         | WonByCheckmate _ -> 
             []
         | GameStarted (_, availableActions)
-        | PlayerMoved (_, availableActions, _) ->
+        | DrawOffered (_, availableActions)
+        | PlayerMoved (_, availableActions) ->
             availableActions
 
 module ExecutableAction =
-    let action = fst
-    let executefn = snd
+    let action: ExecutableAction -> PlayerAction = fst
+    let executeFn: ExecutableAction -> unit -> PlayerActionOutcome = snd
 
 // Possible plies for the player in turn.
 let internal playerPlies gameState =
     let getCapabilities (sourceCoordinate, sourcePiece) =
         pieceCapabilities gameState (sourcePiece, sourceCoordinate)
-
-    let belongsToPlayer _ (Piece (pieceColor, _)) = pieceColor = gameState.playerInTurn
+    let (Player playerColor) = gameState.playerInTurn
+    let belongsToPlayer _ (Piece (pieceColor, _)) = pieceColor = playerColor
     
     gameState.pieces
     |> Map.filter belongsToPlayer
@@ -756,11 +927,20 @@ and internal executePlayerAction (gameState: ChessState) (playerAction: PlayerAc
         Draw (gameState, Agreement)
 
 and internal getOutcomeFromNewBoard (gameState: ChessState) =
-    let drawOffer = gameState.plies |> List.tryHead |> Option.map (fun x -> x.drawOffer) |> Option.defaultValue false
+    let drawOffer =
+        gameState.plies
+        |> List.tryHead
+        |> Option.map (fun x -> x.drawOffer)
+        |> Option.defaultValue NoDrawOffer
 
-    if drawOffer && gameState.pliesWithoutPawnOrCapture >= 50 then
+    let isDrawOffer =
+        match drawOffer with
+        | IsDrawOffer -> true
+        | NoDrawOffer -> false
+        
+    if isDrawOffer && gameState.pliesWithoutPawnOrCapture >= 50 then
         Draw (gameState, FiftyMovements)
-    elif drawOffer &&  gameState.repetitionCount >= 3 then
+    elif isDrawOffer &&  gameState.repetitionCount >= 3 then
         Draw (gameState, ThreefoldRepetition)
     elif gameState.pliesWithoutPawnOrCapture > 75 then
         Draw (gameState, SeventyFiveMovements)
@@ -771,21 +951,25 @@ and internal getOutcomeFromNewBoard (gameState: ChessState) =
         let canMove = playerPlies |> (not << List.isEmpty)
         if canMove then
             let actions = getExecutableActions playerPlies gameState drawOffer
-            match gameState.plies |> List.length with
-            | 0 -> GameStarted (gameState, actions)
-            | _ -> PlayerMoved (gameState, actions, drawOffer)
-        else if isCheck gameState.playerInTurn gameState then
-            WonByCheckmate (gameState, gameState.playerInTurn)
+            match (gameState.plies |> List.length, drawOffer) with
+            | 0, _ -> GameStarted (gameState, actions)
+            | _, IsDrawOffer -> DrawOffered (gameState, actions)
+            | _, NoDrawOffer -> PlayerMoved (gameState, actions)
         else
-            Draw (gameState, Stalemate)
+            match isCheck gameState.playerInTurn gameState with
+            | IsCheck -> WonByCheckmate (gameState, gameState.playerInTurn)
+            | NoCheck -> Draw (gameState, Stalemate)
 
 // Convert possible plies to executable actions, adding Resign and OfferDraw
 and internal getExecutableActions plies gameState drawOffer =
-    let movePieces = plies |> Seq.collect (fun ply -> [MovePiece (ply, plies, false); MovePiece (ply, plies, true)])
+    let movePieces = plies |> Seq.collect (fun ply -> [
+        MovePiece (ply, plies, NoDrawOffer)
+        MovePiece (ply, plies, IsDrawOffer)
+    ])
 
     movePieces
     |> Seq.append [Resign]
-    |> Seq.append (if drawOffer then [AcceptDraw] else [])
+    |> Seq.append (match drawOffer with | IsDrawOffer -> [AcceptDraw] | _ -> [])
     |> Seq.map (makeNextExecutableAction gameState)
     |> Seq.toList
 
@@ -831,21 +1015,22 @@ module ChessState =
         ]
 
         {
-            playerInTurn = White
+            playerInTurn = Player White
             pieces = initialPieces
-            whitePlayerCastlingRights = bothWaysCastlingRights
-            blackPlayerCastlingRights = bothWaysCastlingRights
+            whitePlayerCastlingRights = CastlingRights.bothWays
+            blackPlayerCastlingRights = CastlingRights.bothWays
             pawnCapturableEnPassant = None
             plies = []
             pliesWithoutPawnOrCapture = 0
             repeatableStates = []
             numberOfMoves = 1
+            kings = { white = E1; black = E8 }
         }
         
     /// constructor
     let board (rep: ChessState) = rep.board
     let playerInTurn (rep: ChessState) = rep.playerInTurn
-    let isCheck (rep: ChessState) = rep.isCheck
+    let check (rep: ChessState) = rep.check
     let whitePlayerCastlingRights (rep: ChessState) = rep.whitePlayerCastlingRights
     let canWhiteCastleKingSide = whitePlayerCastlingRights >> CastlingRights.canCastleKingSide
     let canWhiteCastleQueenSide = whitePlayerCastlingRights >> CastlingRights.canCastleQueenSide
@@ -856,8 +1041,6 @@ module ChessState =
     let pliesWithoutPawnOrCapture (rep: ChessState) = rep.pliesWithoutPawnOrCapture
     let moves (rep: ChessState) = rep.moves
     let numberOfMoves (rep: ChessState) = rep.numberOfMoves
-
-let newStandardChessGame = getOutcomeFromNewBoard ChessState.initial
 
 let nullValidate = Ok
 
@@ -950,5 +1133,5 @@ let setupChessPosition gameState validate =
 let setupStandardChessPosition gameState =
     setupChessPosition gameState validateStandardChess
 
-let initialStandardChessPosition =
+let initialStandardChessPosition () =
     ChessState.initial |> getOutcomeFromNewBoard

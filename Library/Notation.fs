@@ -117,7 +117,7 @@ let squareWithActions capList square =
         | CaptureEnPassant _ -> "p"
         | CastleKingSide _ -> "k"
         | CastleQueenSide _ -> "q"
-        | Promote _ -> "M"
+        | MoveAndPromote _ -> "M"
         | CaptureAndPromote _ -> "C"
 
     let squareActionToString =
@@ -160,48 +160,77 @@ let shapeString shape =
     | Pawn -> ""
     | _ -> shape.toString
 
-let plyToAlgebraic (plyOutput: PlyOutput) =
-    let checkSuffix = if plyOutput.isCheck then "+" else ""
-    let ply = plyOutput.ply
-    let restOfPlies = plyOutput.restOfPlies
-    let ambiguousPlies =
-        restOfPlies
-        |> Seq.where (fun p ->
-            Ply.source  p <> Ply.source  ply &&
-            Ply.plyType p =  Ply.plyType ply &&
-            Ply.shape   p =  Ply.shape   ply &&
-            Ply.target  p =  Ply.target  ply)
+module Ply =
+    let toAlgebraic (ply: Ply) =
+        let algebraicWithoutSuffix =
+            match ply with
+            | Move (Piece (_, shape), s, t) ->
+                let targetPosString = coordToAlgebraic t
+                
+                (shapeString shape) + targetPosString
+            | Capture (Piece (_, shape), _, t) ->
+                let targetPosString = coordToAlgebraic t
+                (shapeString shape) + "x" + targetPosString
+            | CaptureEnPassant (_, _, t) ->
+                let targetPosString = coordToAlgebraic t
+                (shapeString Pawn) + "x" + targetPosString
+            | CastleKingSide _ -> "O-O"
+            | CastleQueenSide _ -> "O-O-O"
+            | MoveAndPromote (_, _, t, targetShape) ->
+                let targetPosString = coordToAlgebraic t
+                $"%s{targetPosString}=%s{targetShape.toString}"
+            | CaptureAndPromote (_, s, t, targetShape) ->
+                let targetPosString = coordToAlgebraic t
+                let rankDiscriminator = fileToAlgebraic s
+                let sourceDiscriminator = rankDiscriminator
+                $"%s{sourceDiscriminator}x%s{targetPosString}=%s{targetShape.toString}"
 
-    let algebraicWithoutSuffix =
-        match ply with
-        | Move (Piece (_, shape), s, t) ->
-            let sourceDiscriminator = moveSourceDiscriminator ambiguousPlies shape s
-            let targetPosString = coordToAlgebraic t
-            
-            (shapeString shape) + sourceDiscriminator + targetPosString
-        | Capture (Piece (_, shape), s, t) ->
-            let sourceDiscriminator = captureSourceDiscriminator ambiguousPlies shape s
-            let targetPosString = coordToAlgebraic t
-            (shapeString shape) + sourceDiscriminator + "x" + targetPosString
-        | CaptureEnPassant (_, s, t) ->
-            let sourceDiscriminator = captureSourceDiscriminator ambiguousPlies Pawn s
-            let targetPosString = coordToAlgebraic t
-            (shapeString Pawn) + sourceDiscriminator + "x" + targetPosString
-        | CastleKingSide _ -> "O-O"
-        | CastleQueenSide _ -> "O-O-O"
-        | Promote (_, _, t, targetShape) ->
-            let targetPosString = coordToAlgebraic t
-            $"%s{targetPosString}=%s{targetShape.toString}"
-        | CaptureAndPromote (_, s, t, targetShape) ->
-            let targetPosString = coordToAlgebraic t
-            let rankDiscriminator = fileToAlgebraic s
-            let sourceDiscriminator = rankDiscriminator
-            $"%s{sourceDiscriminator}x%s{targetPosString}=%s{targetShape.toString}"
+        algebraicWithoutSuffix
 
-    algebraicWithoutSuffix + checkSuffix
+module PlyOutput =
+    let toAlgebraic (plyOutput: PlyOutput) =
+        let checkSuffix = match plyOutput.checkStatus with | IsCheck -> "+" | _ -> ""
+        let ply = plyOutput.ply
+        let restOfPlies = plyOutput.restOfPlies
+        let ambiguousPlies =
+            restOfPlies
+            |> Seq.where (fun p ->
+                Ply.source  p <> Ply.source  ply &&
+                Ply.shape   p =  Ply.shape   ply &&
+                Ply.target  p =  Ply.target  ply)
+
+        let algebraicWithoutSuffix =
+            match ply with
+            | Move (Piece (_, shape), s, t) ->
+                let sourceDiscriminator = moveSourceDiscriminator ambiguousPlies shape s
+                let targetPosString = coordToAlgebraic t
+                
+                (shapeString shape) + sourceDiscriminator + targetPosString
+            | Capture (Piece (_, shape), s, t) ->
+                let sourceDiscriminator = captureSourceDiscriminator ambiguousPlies shape s
+                let targetPosString = coordToAlgebraic t
+                (shapeString shape) + sourceDiscriminator + "x" + targetPosString
+            | CaptureEnPassant (_, s, t) ->
+                let sourceDiscriminator = captureSourceDiscriminator ambiguousPlies Pawn s
+                let targetPosString = coordToAlgebraic t
+                (shapeString Pawn) + sourceDiscriminator + "x" + targetPosString
+            | CastleKingSide _ -> "O-O"
+            | CastleQueenSide _ -> "O-O-O"
+            | MoveAndPromote (_, _, t, targetShape) ->
+                let targetPosString = coordToAlgebraic t
+                $"%s{targetPosString}=%s{targetShape.toString}"
+            | CaptureAndPromote (_, s, t, targetShape) ->
+                let targetPosString = coordToAlgebraic t
+                let rankDiscriminator = fileToAlgebraic s
+                let sourceDiscriminator = rankDiscriminator
+                $"%s{sourceDiscriminator}x%s{targetPosString}=%s{targetShape.toString}"
+
+        algebraicWithoutSuffix + checkSuffix
 
 let playerActionToAlgebraic = function
-    | MovePiece (ply, restOfPlies, drawOffer) -> plyToAlgebraic { ply = ply; restOfPlies = restOfPlies; isCheck = false; drawOffer = false } + (if drawOffer then ":d" else "")
+    | MovePiece (ply, restOfPlies, drawOffer) ->
+        let plyOutput = { ply = ply; restOfPlies = restOfPlies; checkStatus = NoCheck; drawOffer = NoDrawOffer }
+        PlyOutput.toAlgebraic plyOutput + (match drawOffer with | IsDrawOffer -> ":d" | _ -> "")
     | Resign -> ":r"
     | AcceptDraw -> ":a"
 
@@ -220,8 +249,8 @@ let movesToPGN =
     >> Seq.indexed
     >> Seq.map (fun (idx, plies) ->
         match plies with
-        |[whitePly] -> $"%i{idx+1}. %s{ plyToAlgebraic whitePly }"
-        |[whitePly; blackPly] -> $"%i{idx+1}. %s{ plyToAlgebraic whitePly } %s{ plyToAlgebraic blackPly }"
+        |[whitePly] -> $"%i{idx+1}. %s{ PlyOutput.toAlgebraic whitePly }"
+        |[whitePly; blackPly] -> $"%i{idx+1}. %s{ PlyOutput.toAlgebraic whitePly } %s{ PlyOutput.toAlgebraic blackPly }"
         |_ -> "")
     >> String.concat " "
 
@@ -229,7 +258,7 @@ module PlayerActionOutcome =
     let private outcomeToResultSeparator outcome =
         match outcome with
         | Draw _
-        | PlayerMoved (_, _, true)
+        | DrawOffered _
         | LostByResignation _ -> " "
         | _ -> ""
 
@@ -238,15 +267,15 @@ module PlayerActionOutcome =
             $"1/2-1/2 {{%A{drawType}}}"
         | LostByResignation (_, player) ->
             match player with
-            | Black -> "1-0"
-            | White -> "0-1"
+            | Player Black -> "1-0"
+            | Player White -> "0-1"
         | WonByCheckmate (_, player) ->
             match player with
-            | Black -> "# 1-0"
-            | White -> "# 0-1"
-        | PlayerMoved (_, _, true) -> "{Draw offered}"
+            | Player Black -> "# 1-0"
+            | Player White -> "# 0-1"
+        | DrawOffered _ -> "{Draw offered}"
         | GameStarted _
-        | PlayerMoved (_, _, false) -> ""
+        | PlayerMoved _ -> ""
 
     let private outcomeToResultSuffix outcome =
         outcomeToResultSeparator outcome + outcomeToResult outcome
@@ -257,12 +286,12 @@ module PlayerActionOutcome =
             " 1/2-1/2"
         | LostByResignation (_, player) ->
             match player with
-            | Black -> " 1-0"
-            | White -> " 0-1"
+            | Player Black -> " 1-0"
+            | Player White -> " 0-1"
         | WonByCheckmate (_, player) ->
             match player with
-            | Black -> "# 1-0"
-            | White -> "# 0-1"
+            | Player Black -> "# 1-0"
+            | Player White -> "# 0-1"
         | _ ->
             ""
 
@@ -326,6 +355,20 @@ module ChessState =
             plies = []
             numberOfMoves = raw.numberOfMoves
             repeatableStates = []
+            kings = {
+                white =
+                    raw.pieces
+                    |> Map.toSeq
+                    |> Seq.filter (fun (_, p) -> match p with | Piece (White, King) -> true | _ -> false)
+                    |> Seq.exactlyOne
+                    |> fst
+                black =
+                    raw.pieces
+                    |> Map.toSeq
+                    |> Seq.filter (fun (_, p) -> match p with | Piece (Black, King) -> true | _ -> false)
+                    |> Seq.exactlyOne
+                    |> fst
+            }
         }
         |> validateStandardChess
 
@@ -353,8 +396,9 @@ module ChessState =
         | Some coord -> coordToAlgebraic coord
         | None -> "-"
 
+        let playerColor = fun (Player pc) -> pc
         [
-            ChessState.playerInTurn >> colorToFEN
+            ChessState.playerInTurn >> playerColor >> colorToFEN
             castleStatusToFEN
             ChessState.pawnCapturableEnPassant >> enPassantTarget
             ChessState.pliesWithoutPawnOrCapture >> fun x -> x.ToString()

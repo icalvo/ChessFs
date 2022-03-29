@@ -18,17 +18,6 @@ type Rank =
     | R6
     | R7
     | R8
-    static member fromInt i =
-        match i with
-        | 7 -> R1
-        | 6 -> R2
-        | 5 -> R3
-        | 4 -> R4
-        | 3 -> R5
-        | 2 -> R6
-        | 1 -> R7
-        | 0 -> R8
-        | _ -> failwith "Invalid rank index"
     member x.toInt =
         match x with
         | R1 -> 7
@@ -40,19 +29,12 @@ type Rank =
         | R7 -> 1
         | R8 -> 0
 
+
+type CreateRank = int -> Rank option
+
+
 type File = A | B | C | D | E | F | G | H
 with
-    static member fromInt i =
-        match i with
-        | 0 -> A
-        | 1 -> B
-        | 2 -> C
-        | 3 -> D
-        | 4 -> E
-        | 5 -> F
-        | 6 -> G
-        | 7 -> H
-        | _ -> failwith "Invalid file index"
     member x.toInt =
         match x with
         | A -> 0
@@ -136,6 +118,7 @@ let H7 = (H, R7)
 let H8 = (H, R8)
 
 module Rank =
+        
     let next: Coordinate -> Coordinate option = function
         | f, R1 -> Some (f, R2)
         | f, R2 -> Some (f, R3)
@@ -179,4 +162,4 @@ module File =
 
 type Color = Black | White
 
-type Player = Color
+type Player = Player of Color

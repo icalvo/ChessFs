@@ -12,7 +12,7 @@ module GameRepository =
 
     let createGame () =
         let id = gameStorage.Values.Count + 1
-        let newGame = initialStandardChessPosition
+        let newGame = initialStandardChessPosition()
         gameStorage.Add(id, newGame)
         let actions = newGame |> PlayerActionOutcome.actions |> List.map executableActionToAlgebraic
         { Id = id; State = PlayerActionOutcome.state newGame; Actions = actions }

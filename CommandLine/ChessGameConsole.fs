@@ -21,7 +21,7 @@ Also, you can enter 'h' to show this help and 'q' to quit the game."
 
 let chessConsoleTransition game =
     let actions = PlayerActionOutcome.actions
-    let execute = ExecutableAction.executefn
+    let execute = ExecutableAction.executeFn
     let normalizeAction action = (executableActionToAlgebraic action).ToLowerInvariant()
     let normalizeInput (x: string) = x.ToLowerInvariant()
     gameConsoleTransition game actions execute normalizeAction normalizeInput printOutcome printHelp

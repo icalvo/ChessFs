@@ -22,7 +22,9 @@
     module Seq =
         let pipe action = Seq.map (fun x -> action x; x)
         let debug name = pipe (fun x -> if Configuration.debug then printfn $"%s{name} yields %A{x}")
-        let filterNones (s: seq<'a option>): seq<'a> = Seq.choose id s
+        let debugfn name f = pipe (fun x -> if Configuration.debug then printfn $"%s{name} yields %A{f x}")
+        let debugflt name f = pipe (fun x -> if Configuration.debug && f x then printfn $"%s{name} yields %A{x}")
+        let filterNones seq = Seq.choose id seq
         let takeWhileIncludingLast predicate (s:seq<_>) = 
             /// Iterates over the enumerator, yielding elements and
             /// stops after an element for which the predicate does not hold
@@ -63,7 +65,8 @@
 
     module List =
         let pipe action = List.map (fun x -> action x; x)
-        let debug name = pipe (printfn "%s yields %A" name)
+        let debug name = pipe (fun x -> if Configuration.debug then printfn $"%s{name} yields %A{x}")
+        let debugfn name f = pipe (fun x -> if Configuration.debug then printfn $"%s{name} yields %A{f x}")
         let apply arg fnlist = fnlist |> List.map (fun fn -> fn arg)
         let filterNones (s: 'a option list): 'a list = List.choose id s
         let repeat value n = List.init n (fun _ -> value)

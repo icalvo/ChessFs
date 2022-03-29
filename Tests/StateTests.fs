@@ -20,13 +20,12 @@ module ``transitions`` =
         >> Result.mapError (fun x -> "Failure: " + x)
         >> Result.toValue
 
-    let finalPGN (input: seq<string>) =
-        input
-        |> algebraicStringChessStateMachine
-        |> Seq.last
-        |> Result.map PlayerActionOutcome.toCommentedPGN
-        |> Result.mapError (fun x -> "Failure: " + x)
-        |> Result.toValue
+    let finalPGN: string seq -> string =
+        algebraicStringChessStateMachine
+        >> Seq.last
+        >> Result.map PlayerActionOutcome.toCommentedPGN
+        >> Result.mapError (fun x -> "Failure: " + x)
+        >> Result.toValue
 
     let outcomes =
         let statusToFEN = PlayerActionOutcome.state >> ChessState.statusToFEN
@@ -35,12 +34,14 @@ module ``transitions`` =
         >> Seq.map (ResultDefault (fun x -> $"%s{PlayerActionOutcome.toCommentedPGN x} {{%s{statusToFEN x}}}"))
         >> Seq.toList
 
-    [<Fact>]
-    let ``Invalid move``() =
-        ["e6"] |> finalState =! "Failure: Could not find action \"e6\"."
+    let startsWith (p: string) (s: string) = s.StartsWith(p)
 
     [<Fact>]
-    let ``Stalemate``() =
+    let ``Invalid move``() =
+        test <@ ["e6"] |> finalState |> startsWith "Failure: Could not find action e6." @>
+
+    [<Fact>]
+    let Stalemate() =
         ["e3"; "a5";"Qh5";"Ra6";"Qxa5";"h5";"h4";"Rah6";"Qxc7";"f6";"Qxd7";"Kf7";"Qxb7";"Qd3"; "Qxb8";"Qh7"; "Qxc8"; "Kg6"; "Qe6"]
          |> finalState =! "1/2-1/2 {Stalemate}"
 
@@ -74,6 +75,11 @@ module ``transitions`` =
         [ "Nc3"; "Nc6"; "Nb1"; "Nb8"; "Nc3"; "Nc6"; "Nb1"; "Nb8"; "Nc3"; "Nc6"; "Nb1"; "Nb8"; "e4:d"; ]
         |> finalPGN =! "1. Nc3 Nc6 2. Nb1 Nb8 3. Nc3 Nc6 4. Nb1 Nb8 5. Nc3 Nc6 6. Nb1 Nb8 7. e4 {Draw offered}"
 
+    [<Fact>]
+    let ``Check bug``() =
+        [ "e4"; "e5"; "Bc4"; "Nc6"; "Qh5" ]
+        |> finalPGN <>! "1. e4 e5 2. Bc4 Nc6 3. Qh5+"
+    
     [<Fact>]
     let ``Scholar's mate``() =
         [ "e4"; "e5"; "Bc4"; "Nc6"; "Qh5"; "Nf6"; "Qxf7" ]
