@@ -9,6 +9,8 @@ module ``FEN Parsing`` =
     open ChessFs.Chess.Engine
     open Parsing
     open StateMachine
+    open Coordinate
+
 
     let resultOrFail =
         function
@@ -30,12 +32,30 @@ module ``FEN Parsing`` =
         | Success (r, _, _) -> r =! expected.toRaw
         | Failure (msg, _, _) -> failwith msg
 
-//    open Coordinate
-//
-//    [<Fact>]
-//    let ``sdfdsf`` =
-//        ":a" |> parsePlayerAction =! Result.Ok (ParsedPlayerAction.AcceptDraw)
-//        ":r" |> parsePlayerAction =! Result.Ok ParsedPlayerAction.Resign
-//        "e4" |> parsePlayerAction =! Result.Ok (ParsedPlayerAction.MovePiece (ParsedPly.Move (Pawn, E4), NoDrawOffer))
-//        "e4:d" |> parsePlayerAction =! Result.Ok (ParsedPlayerAction.MovePiece (ParsedPly.Move (Pawn, E4), IsDrawOffer))
-//        "Qxf3" |> parsePlayerAction =! Result.Ok (ParsedPlayerAction.MovePiece (ParsedPly.Capture (Queen, F3), NoDrawOffer))
+    [<Fact>]
+    let ``Player action parsing`` () =
+        ":a" |> parsePlayerAction =! Result.Ok (ParsedPlayerAction.AcceptDraw)
+        ":r" |> parsePlayerAction =! Result.Ok ParsedPlayerAction.Resign
+        "e4" |> parsePlayerAction =! Result.Ok (ParsedPlayerAction.MovePiece (ParsedPly.Move (Pawn, E4), NoDrawOffer))
+        "Nf3" |> parsePlayerAction =! Result.Ok (ParsedPlayerAction.MovePiece (ParsedPly.Move (Knight, F3), NoDrawOffer))
+        "N1f3" |> parsePlayerAction =! Result.Ok (ParsedPlayerAction.MovePiece (ParsedPly.Move (Knight, F3), NoDrawOffer))
+        "Nef3" |> parsePlayerAction =! Result.Ok (ParsedPlayerAction.MovePiece (ParsedPly.Move (Knight, F3), NoDrawOffer))
+        "Ne1f3" |> parsePlayerAction =! Result.Ok (ParsedPlayerAction.MovePiece (ParsedPly.Move (Knight, F3), NoDrawOffer))
+        "N1xf3" |> parsePlayerAction =! Result.Ok (ParsedPlayerAction.MovePiece (ParsedPly.Capture (Knight, F3), NoDrawOffer))
+        "Nexf3" |> parsePlayerAction =! Result.Ok (ParsedPlayerAction.MovePiece (ParsedPly.Capture (Knight, F3), NoDrawOffer))
+        "Ne1xf3" |> parsePlayerAction =! Result.Ok (ParsedPlayerAction.MovePiece (ParsedPly.Capture (Knight, F3), NoDrawOffer))
+        "e1=Q" |> parsePlayerAction =! Result.Ok (ParsedPlayerAction.MovePiece (ParsedPly.MoveAndPromote (E1, Queen), NoDrawOffer))
+        "exf8=N" |> parsePlayerAction =! Result.Ok (ParsedPlayerAction.MovePiece (ParsedPly.CaptureAndPromote (F8, Knight), NoDrawOffer))
+        "e4:d" |> parsePlayerAction =! Result.Ok (ParsedPlayerAction.MovePiece (ParsedPly.Move (Pawn, E4), IsDrawOffer))
+        "Nf3:d" |> parsePlayerAction =! Result.Ok (ParsedPlayerAction.MovePiece (ParsedPly.Move (Knight, F3), IsDrawOffer))
+        "N1f3:d" |> parsePlayerAction =! Result.Ok (ParsedPlayerAction.MovePiece (ParsedPly.Move (Knight, F3), IsDrawOffer))
+        "N1f3:d" |> parsePlayerAction =! Result.Ok (ParsedPlayerAction.MovePiece (ParsedPly.Move (Knight, F3), IsDrawOffer))
+        "Nef3:d" |> parsePlayerAction =! Result.Ok (ParsedPlayerAction.MovePiece (ParsedPly.Move (Knight, F3), IsDrawOffer))
+        "Ne1f3:d" |> parsePlayerAction =! Result.Ok (ParsedPlayerAction.MovePiece (ParsedPly.Move (Knight, F3), IsDrawOffer))
+        "N1xf3:d" |> parsePlayerAction =! Result.Ok (ParsedPlayerAction.MovePiece (ParsedPly.Capture (Knight, F3), IsDrawOffer))
+        "Nexf3:d" |> parsePlayerAction =! Result.Ok (ParsedPlayerAction.MovePiece (ParsedPly.Capture (Knight, F3), IsDrawOffer))
+        "Ne1xf3:d" |> parsePlayerAction =! Result.Ok (ParsedPlayerAction.MovePiece (ParsedPly.Capture (Knight, F3), IsDrawOffer))
+        "e1=Q:d" |> parsePlayerAction =! Result.Ok (ParsedPlayerAction.MovePiece (ParsedPly.MoveAndPromote (E1, Queen), IsDrawOffer))
+        "exf8=N:d" |> parsePlayerAction =! Result.Ok (ParsedPlayerAction.MovePiece (ParsedPly.CaptureAndPromote (F8, Knight), IsDrawOffer))
+        "O-O" |> parsePlayerAction =! Result.Ok (ParsedPlayerAction.MovePiece (ParsedPly.CastleKingSide, NoDrawOffer))
+        "O-O-O" |> parsePlayerAction =! Result.Ok (ParsedPlayerAction.MovePiece (ParsedPly.CastleQueenSide, NoDrawOffer))

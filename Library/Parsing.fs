@@ -5,10 +5,10 @@ open ChessFs.Chess
 type ParsedPly =
     | Move of Shape * Coordinate
     | Capture of Shape * Coordinate
-    | CastleKingSide of Color
-    | CastleQueenSide of Color
-    | MoveAndPromote of Color * Coordinate * Shape
-    | CaptureAndPromote of Color * Coordinate * Shape
+    | CastleKingSide
+    | CastleQueenSide
+    | MoveAndPromote of Coordinate * Shape
+    | CaptureAndPromote of Coordinate * Shape
 
 type ParsedPlayerAction =
     | MovePiece of ParsedPly * DrawOfferStatus
@@ -26,10 +26,10 @@ module ParsedPlayerAction =
             | Ply.Move (Piece (_, shape), _, t), Move (shape2, t2) -> (shape, t) = (shape2, t2)
             | Ply.Capture (Piece(_, shape), _, t), Capture (shape2, t2) -> (shape, t) = (shape2, t2)
             | Ply.CaptureEnPassant (_, _, t), Capture (Pawn, t2) -> t = t2
-            | Ply.CastleKingSide color, CastleKingSide color2 -> color = color2
-            | Ply.CastleQueenSide color, CastleQueenSide color2 -> color = color2
-            | Ply.MoveAndPromote (color, _, t, shape), MoveAndPromote (color2, t2, shape2) -> (color, shape, t) = (color2, shape2, t2)
-            | Ply.CaptureAndPromote (color, _, t, shape), CaptureAndPromote (color2, t2, shape2) -> (color, shape, t) = (color2, shape2, t2)
+            | Ply.CastleKingSide _, CastleKingSide -> true
+            | Ply.CastleQueenSide _, CastleQueenSide -> true
+            | Ply.MoveAndPromote (color, _, t, shape), MoveAndPromote (t2, shape2) -> (shape, t) = (shape2, t2)
+            | Ply.CaptureAndPromote (color, _, t, shape), CaptureAndPromote (t2, shape2) -> (shape, t) = (shape2, t2)
             | _ -> false
         | _ -> false
 
@@ -172,41 +172,37 @@ module Parsing =
     let pResign = stringReturn ":r" Resign
     let pDrawOfferStatus = opt (pstring ":d") |>> function | Some _ -> IsDrawOffer | _ -> NoDrawOffer
 
-    open Coordinate
-
-    let trol (shapeOpt, _, _, (captOpt, coord), promOpt, dos) =
+    let trol (shapeOpt, (isCapture, target), promOpt, dos) =
         let ply =
             match shapeOpt with
             | Some shape ->
-                match captOpt with
-                | Some _ -> Capture (shape, coord)
-                | None -> Move (shape, coord)
+                if isCapture then
+                    Capture (shape, target)
+                else
+                    Move (shape, target)
             | None ->
                 let shape = Pawn
-                match promOpt, captOpt with
-                | Some prom, Some _ -> CaptureAndPromote(White, coord, prom)
-                | Some prom, None -> MoveAndPromote(White, coord, prom)
-                | _, Some _ -> Capture(shape, coord)
-                | _ -> Move (shape, coord)
+                match promOpt, isCapture with
+                | Some prom, true -> CaptureAndPromote (target, prom)
+                | Some prom, false -> MoveAndPromote (target, prom)
+                | _, true -> Capture (shape, target)
+                | _ -> Move (shape, target)
 
         MovePiece(ply, dos)
 
-    let tuple6 a1 a2 a3 a4 a5 a6 = tuple5 a1 a2 a3 a4 a5 .>>. a6 |>> fun (((x1, x2, x3, x4, x5), x6)) -> (x1, x2, x3, x4, x5, x6)
-    let tuple7 a1 a2 a3 a4 a5 a6 a7 = tuple6 a1 a2 a3 a4 a5 a6 .>>. a7 |>> fun (((x1, x2, x3, x4, x5, x6), x7)) -> (x1, x2, x3, x4, x5, x6, x7)
-
     let pcoordsRange = choice [
-        pfile >>. prank >>. (opt (pchar 'x')) .>>. pcoord
-        pfile >>. prank >>. preturn None .>>. pcoord
-        pfile >>. (opt (pchar 'x')) .>>. pcoord
-        prank >>. (opt (pchar 'x')) .>>. pcoord
-        pfile >>. preturn None .>>. pcoord
-        prank >>. preturn None .>>. pcoord
-        (opt (pchar 'x')) .>>. pcoord
-        preturn None .>>. pcoord
+        attempt (opt pfile >>. opt prank >>. (opt (pchar 'x') |>> Option.isSome) .>>. pcoord)
+        preturn None >>. preturn None >>. preturn false .>>. pcoord 
     ]
 
     let ppromotionShape = pstring "=" >>. pshape
-    let pMovePiece = tuple6 (opt pshape) (opt pfile) (opt prank) pcoordsRange (opt ppromotionShape) pDrawOfferStatus |>> trol
+    let pMovePiece = choice [
+        stringReturn "O-O-O:d" (ParsedPlayerAction.MovePiece (ParsedPly.CastleQueenSide, IsDrawOffer))
+        stringReturn "O-O-O" (ParsedPlayerAction.MovePiece (ParsedPly.CastleQueenSide, NoDrawOffer))
+        stringReturn "O-O:d" (ParsedPlayerAction.MovePiece (ParsedPly.CastleKingSide, IsDrawOffer))
+        stringReturn "O-O" (ParsedPlayerAction.MovePiece (ParsedPly.CastleKingSide, NoDrawOffer))
+        tuple4 (opt pshape) pcoordsRange (opt ppromotionShape) pDrawOfferStatus |>> trol
+    ]
 
     let private pplayerAction = choice [ pAcceptDraw; pResign; pMovePiece ]
 
