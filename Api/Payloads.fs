@@ -1,7 +1,7 @@
 ﻿namespace ChessFs.Api
-open Engine
 
 module Payloads =
+    open ChessFs.Chess
 
     type ChessPayload = {
         Id: int

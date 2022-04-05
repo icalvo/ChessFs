@@ -1,121 +1,125 @@
-﻿module Output
+﻿namespace ChessFs.CommandLine
 
-open System
-open CoreTypes
-open Engine
-open Microsoft.FSharp.Core.Printf
-open Utils
-open Notation
+module Output =
 
-// CONSOLE OUTPUT
+    open System
+    open ChessFs.Chess
+    open ChessFs.Chess.Engine
+    open Microsoft.FSharp.Core.Printf
 
-let cprintf fc bc fmt = 
-    kprintf
-        (fun s ->
-            let oldForegroundColor = Console.ForegroundColor
-            let oldBackgroundColor = Console.BackgroundColor
-            try
-                Console.ForegroundColor <- fc;
-                Console.BackgroundColor <- bc;
-                Console.Write s
-            finally
-                Console.ForegroundColor <- oldForegroundColor;
-                Console.BackgroundColor <- oldBackgroundColor)
-        fmt
+    open ChessFs.Common
+    open Notation
+    open Player
 
-let cprintfn fc bc fmt =
-    cprintf fc bc fmt
-    printfn ""
+    // CONSOLE OUTPUT
 
-let cellBackground (file: File, rank: Rank) =
-    match (file.toInt + rank.toInt) % 2 with
-    | 0 -> ConsoleColor.Green
-    | 1 -> ConsoleColor.DarkGreen
-    | _ -> failwith "Cannot happen"
+    let cprintf fc bc fmt = 
+        kprintf
+            (fun s ->
+                let oldForegroundColor = Console.ForegroundColor
+                let oldBackgroundColor = Console.BackgroundColor
+                try
+                    Console.ForegroundColor <- fc;
+                    Console.BackgroundColor <- bc;
+                    Console.Write s
+                finally
+                    Console.ForegroundColor <- oldForegroundColor;
+                    Console.BackgroundColor <- oldBackgroundColor)
+            fmt
 
-let cellForeground =
-    function
-    | PieceSquare (Piece (White, _), _) -> ConsoleColor.White
-    | PieceSquare (Piece (Black, _), _) -> ConsoleColor.Black
-    | EmptySquare _ -> ConsoleColor.Black
-
-let printSquare sq =
-    cprintf (cellForeground sq) (cellBackground (Square.coordinate sq)) $"%s{squareToString sq}"
-
-let printBoard (b: Square[,]) color =
-    let colorFunc =
-        match color with
-        | Player White -> id
-        | Player Black -> Array.rev
-
-    let colorFunc2 =
-        match color with
-        | Player White -> id
-        | Player Black -> Array.rev
-
-    let indexesToIterate = colorFunc [|0..7|]
-
-    let iterRow fn row =
-        indexesToIterate
-        |> Array.map (fun i -> b.[row, i])
-        |> Array.iter fn
-
-    let printSquareRow i =
-        printf $"%i{8-i}"
-        iterRow printSquare i
-        printfn $"%i{8-i}"
-
-    let filesHeader =
-        (colorFunc2 [|"A"; "B"; "C"; "D"; "E"; "F"; "G"; "H"|])
-        |> Array.map (fun x -> x.PadLeft(2, ' '))
-        |> String.concat ""
-
-    printfn $"%s{filesHeader}"
-    indexesToIterate |> Array.iter printSquareRow
-    printfn $"%s{filesHeader}"
-
-let csl toString seq = seq |> Seq.map toString |> String.concat ", "
-
-let actionsOutput =
-    Seq.map executableActionToAlgebraic 
-    >> String.concat ", "
-
-let printActions = 
-    actionsOutput
-    >> printfn "%s"
-
-let printMoves =
-    movesToPGN >> printfn "Moves: %s"
- 
-let printOutcome outcome =
-    let state = PlayerActionOutcome.state outcome
-    let board = ChessState.board state
-    let playerInTurn = ChessState.playerInTurn state
-
-    printBoard board playerInTurn
-
-    outcome |> PlayerActionOutcome.toSimplePGN |> printfn "%s"
-    match ChessState.check state with
-    | IsCheck -> printfn "CHECK!"
-    | _ -> ()
-    printfn $"%A{playerInTurn} to move"
-    printfn ""
-    match outcome with
-    | Draw (_, drawType) -> 
-        printfn $"GAME OVER - Draw by %A{drawType}"
+    let cprintfn fc bc fmt =
+        cprintf fc bc fmt
         printfn ""
-    | LostByResignation (_, player) -> 
-        printfn $"GAME WON because %A{opponent player} resigned"
+
+    let cellBackground (file: File, rank: Rank) =
+        match (file.toInt + rank.toInt) % 2 with
+        | 0 -> ConsoleColor.Green
+        | 1 -> ConsoleColor.DarkGreen
+        | _ -> failwith "Cannot happen"
+
+    let cellForeground =
+        function
+        | PieceSquare (Piece (White, _), _) -> ConsoleColor.White
+        | PieceSquare (Piece (Black, _), _) -> ConsoleColor.Black
+        | EmptySquare _ -> ConsoleColor.Black
+
+    let printSquare sq =
+        cprintf (cellForeground sq) (cellBackground (Square.coordinate sq)) $"%s{squareToString sq}"
+
+    let printBoard (b: Square[,]) color =
+        let colorFunc =
+            match color with
+            | Player White -> id
+            | Player Black -> Array.rev
+
+        let colorFunc2 =
+            match color with
+            | Player White -> id
+            | Player Black -> Array.rev
+
+        let indexesToIterate = colorFunc [|0..7|]
+
+        let iterRow fn row =
+            indexesToIterate
+            |> Array.map (fun i -> b.[row, i])
+            |> Array.iter fn
+
+        let printSquareRow i =
+            printf $"%i{8-i}"
+            iterRow printSquare i
+            printfn $"%i{8-i}"
+
+        let filesHeader =
+            (colorFunc2 [|"A"; "B"; "C"; "D"; "E"; "F"; "G"; "H"|])
+            |> Array.map (fun x -> x.PadLeft(2, ' '))
+            |> String.concat ""
+
+        printfn $"%s{filesHeader}"
+        indexesToIterate |> Array.iter printSquareRow
+        printfn $"%s{filesHeader}"
+
+    let csl toString seq = seq |> Seq.map toString |> String.concat ", "
+
+    let actionsOutput =
+        Seq.map executableActionToAlgebraic 
+        >> String.concat ", "
+
+    let printActions = 
+        actionsOutput
+        >> printfn "%s"
+
+    let printMoves =
+        movesToPGN >> printfn "Moves: %s"
+     
+    let printOutcome outcome =
+        let state = PlayerActionOutcome.state outcome
+        let board = ChessState.board state
+        let playerInTurn = ChessState.playerInTurn state
+
+        printBoard board playerInTurn
+
+        outcome |> PlayerActionOutcome.toSimplePGN |> printfn "%s"
+        match Setup.check state with
+        | IsCheck -> printfn "CHECK!"
+        | _ -> ()
+        printfn $"%A{playerInTurn} to move"
         printfn ""
-    | WonByCheckmate (_, player) -> 
-        printfn $"GAME WON by checkmating %A{player}"
-        printfn ""
-    | DrawOffered (_, availableActions) ->
-        printfn $"DRAW OFFERED"
-        printActions availableActions
-    | PlayerMoved (_, availableActions) ->
-        printActions availableActions
-    | GameStarted (_, availableActions) -> 
-        printfn "GAME STARTED"
-        printActions availableActions
- 
+        match outcome with
+        | Draw (_, drawType) -> 
+            printfn $"GAME OVER - Draw by %A{drawType}"
+            printfn ""
+        | LostByResignation (_, player) -> 
+            printfn $"GAME WON because %A{opponent player} resigned"
+            printfn ""
+        | WonByCheckmate (_, player) -> 
+            printfn $"GAME WON by checkmating %A{player}"
+            printfn ""
+        | DrawOffered (_, availableActions) ->
+            printfn $"DRAW OFFERED"
+            printActions availableActions
+        | PlayerMoved (_, availableActions) ->
+            printActions availableActions
+        | GameStarted (_, availableActions) -> 
+            printfn "GAME STARTED"
+            printActions availableActions
+     

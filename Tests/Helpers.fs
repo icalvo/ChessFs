@@ -1,5 +1,7 @@
-module Helpers
-    open Engine
+namespace ChessFs.Tests
+
+module Helpers =
+    open ChessFs.Chess
     open Notation
 
     let availableActions = function
@@ -10,5 +12,5 @@ module Helpers
             | PlayerMoved (_, availableActions) ->
                 List.map executableActionToAlgebraic availableActions
             | _ -> List.empty
-        | Error msg -> ["Invalid board: " + msg]
+        | Error msg -> [$"Invalid board: %A{msg}"]
 

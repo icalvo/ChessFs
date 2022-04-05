@@ -2,6 +2,7 @@ namespace ChessFs.Api.Rest
 
 open System.Text
 
+open ChessFs.Chess
 open Suave
 open Suave.RequestErrors
 open Suave.Operators
@@ -10,21 +11,46 @@ open Suave.Filters
 open Newtonsoft.Json
 open Newtonsoft.Json.Serialization
 
-open Engine
 open ChessFs.Api.Payloads
+
+type DatabaseError =
+    | NotFound of int
+
+type GameRepositoryError =
+    | Database of DatabaseError
+    | Validation of ValidationError
+
+module DataBaseError =
+    let message = function
+        | NotFound id -> id |> sprintf "Game %i Not found"
+
+module ValidationError =
+    let private colorRepresentation = function
+        | White -> "white"
+        | Black -> "black"
+    let message = function
+    | Parsing msg -> msg |> sprintf "Parsing error: %s"
+    | MoreThanOneKing color -> color |> colorRepresentation |> sprintf "There is more than one %s king"
+    | MoreThanEightPawns color -> color |> colorRepresentation |> sprintf "There are more than eight %s pawns"
+    | MoreExcessPiecesThanAbsentPawns color -> color |> colorRepresentation |> sprintf "There are more excess %s pieces than absent pawns"
+
+module GameRepositoryError =
+    let message = function
+        | Database e -> DataBaseError.message e
+        | Validation e -> ValidationError.message e
 
 [<AutoOpen>]
 module RestFul =
     type ChessStateRestResource = {
         Create : unit -> ChessPayload
-        Play : int -> string -> Result<ChessPayload, string>
-        GetById : int -> Result<ChessPayload, string>
+        Play : int -> string -> Result<ChessPayload, GameRepositoryError>
+        GetById : int -> Result<ChessPayload, DatabaseError>
         ItExists : int -> bool
     }
 
     let JSON v =
-        let settings = new JsonSerializerSettings ()
-        settings.ContractResolver <- new CamelCasePropertyNamesContractResolver ()
+        let settings = JsonSerializerSettings()
+        settings.ContractResolver <- CamelCasePropertyNamesContractResolver()
 
         JsonConvert.SerializeObject(v, settings)
         |> OK >=> Writers.setMimeType "application/json"
@@ -50,22 +76,23 @@ module RestFul =
         
         let resourceIdPath =
             let path = resourcePath + "/%d"
-            new PrintfFormat<(int -> string), unit, string, string, int>(path)
+            PrintfFormat<int -> string, unit, string, string, int>(path)
 
         let resourceIdAndActionPath =
             let path = resourcePath + "/%d/%s"
-            new PrintfFormat<(int -> string -> string), unit, string, string, (int * string)>(path)
+            PrintfFormat<int -> string -> string, unit, string, string, (int * string)>(path)
 
         //let deleteResourceById id =
         //    resource.Delete id
         //    NO_CONTENT
         
         let getResourceById =
-            resource.GetById >> handleResource NOT_FOUND
+            resource.GetById >> Result.mapError DataBaseError.message >> handleResource NOT_FOUND
 
         let play args =
             args
             ||> resource.Play
+            |> Result.mapError GameRepositoryError.message
             |> handleResource badRequest
 
         let resourceExists id =

@@ -1,10 +1,11 @@
-﻿open System
-open Engine
-open Utils
+﻿open ChessFs.Common
+open ChessFs.Chess
+open ChessFs.Chess.Engine
 open Notation
-open ChessStateMachine
-open GameConsole
-open ChessGameConsole
+open StateMachine
+open ChessFs.CommandLine.GameConsole
+open ChessFs.CommandLine.ChessGameConsole
+open Setup
 
 type State =
     | State
@@ -22,9 +23,6 @@ let main argv =
     printfn "All you see in each ply is provided by the engine: the board state, the list of possible moves and the outcome of the former move."
 
     let game = initialStandardChessPosition()
-    
-//    let actions = [ "e4"; "e5"; "Bc4"; "Nc6"; "Qh5"; "Nf6"; "Qxf7" ] |> finalPGN
-//    let x = Console.ReadLine()
     
     let commandLineInput = argv |> Seq.map (fun x -> lazy x);
     let input = commandLineInput |> Seq.append consoleInput

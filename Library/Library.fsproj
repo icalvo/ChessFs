@@ -12,10 +12,10 @@
   <ItemGroup>
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="Configuration.fs" />
-    <Compile Include="Utils.fs" />
+    <Compile Include="BasicTypesExtensions.fs" />
     <Compile Include="StateMachine.fs" />
     <Compile Include="StateActions.fs" />
-    <Compile Include="CoreTypes.fs" />
+    <Compile Include="Chess.fs" />
     <Compile Include="Engine.fs" />
     <Compile Include="Notation.fs" />
     <Compile Include="Parsing.fs" />

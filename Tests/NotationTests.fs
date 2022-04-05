@@ -3,12 +3,16 @@
 module ``Notation Tests`` =
     open Xunit
     open Swensen.Unquote
-    open CoreTypes
-    open Engine
+    open ChessFs.Common
+    open ChessFs.Chess
+    open ChessFs.Chess.Engine
+
+    open Coordinate
+    open Piece
+    open PlyOutput
     open Notation
-    open ChessStateMachine
+    open StateMachine
     open ChessState    
-    open Utils
 
     [<Fact>]
     let ``Shape tests``() =

@@ -3,10 +3,12 @@
 module ``transitions`` =
     open Xunit
     open Swensen.Unquote
-    open Utils
-    open Engine
+    open ChessFs.Common
+    open ChessFs.Chess
+    open ChessFs.Chess.Engine
+
     open Notation
-    open ChessStateMachine
+    open StateMachine
 
     let ResultDefault fn =
         function

@@ -1,11 +1,10 @@
 ﻿namespace ChessFs.Tests.Utils
 
+open Xunit
+open Swensen.Unquote
+open ChessFs.Common
 
 module ``Option`` =
-    open Xunit
-    open Swensen.Unquote
-    open Utils
-
     [<Fact>]
     let ``defaultTo``() =
         None |> Option.defaultValue 34 =! 34
@@ -22,10 +21,6 @@ module ``Option`` =
         Some 5 |> Option.mapList listfn =! [ "other" ]
 
 module ``Seq`` =
-    open Xunit
-    open Swensen.Unquote
-    open Utils
-
     [<Fact>]
     let ``filterNones``() =
         Seq.filterNones [Some "a"; None; Some "b"] |> Seq.toList =! [ "a"; "b" ]
@@ -51,10 +46,6 @@ module ``Seq`` =
         [1; 3; 5; 6; 8; 9; 12 ] |> Seq.batch 3 =! [ [ 1; 3; 5 ] ; [6; 8; 9] ; [ 12 ] ]
 
 module ``List`` =
-    open Xunit
-    open Swensen.Unquote
-    open Utils
-
     [<Fact>]
     let ``filterNones``() =
         List.filterNones [Some "a"; None; Some "b"] =! [ "a"; "b" ]
@@ -72,25 +63,19 @@ module ``List`` =
         funList |> List.apply 2 =! [ 4; 7; 1 ]
 
 module ``Result`` =
-    open Xunit
-    open Swensen.Unquote
-    open Utils
+    [<Fact>]
+    let ``defaultWith``() =
+        let fn n =
+            match n with
+            | 455 -> Ok "nice455"
+            | _ -> Error ($"bad%i{n}", [ "not 455" ])
 
-    //[<Fact>]
-    //let ``defaultWith``() =
-    //    let fn n =
-    //        match n with
-    //        | 455 -> Ok "nice455"
-    //        | _ -> Error ($"bad%i{n}", [ "not 455" ])
-
-    //    Ok 455 |> Result.bind fn =! Ok "nice455"
-    //    Ok 566 |> Result.bind fn =!  Error ("bad566", [ "not 455" ])
-    //    Error (314, [ "erro1"; "error2" ]) |> Result.bind2 fn =! Error ("bad314", [ "erro1"; "error2"; "not 455" ])
+        Ok 455 |> Result.bind fn =! Ok "nice455"
+        Ok 566 |> Result.bind fn =!  Error ("bad566", [ "not 455" ])
+        Error ("314", [ "erro1"; "error2" ]) |> Result.bind fn =! Error ("314", [ "erro1"; "error2" ])
 
 module ``Operators`` =
-    open Xunit
-    open Swensen.Unquote
-    open Utils
+    open Option
 
     [<Fact>]
     let ``>?>``() =

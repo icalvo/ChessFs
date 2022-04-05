@@ -1,12 +1,15 @@
 ﻿namespace ChessFs.Tests.Chess
 
-module ``Basics Tests`` =
-    open Xunit
-    open Swensen.Unquote
-    open Utils
-    open CoreTypes
-    open Engine
+open Xunit
+open Swensen.Unquote
+open ChessFs.Chess
+open ChessFs.Chess.Engine
+open ChessFs.Tests
 
+module ``Basics Tests`` =
+    open Coordinate
+    open Piece
+    
     [<Fact>]
     let ``Directions tests``() =
         [A2;C8;H3] |> List.map PieceReaches.UpRight  =! [Some B3; None; None]
@@ -75,14 +78,49 @@ module ``Basics Tests`` =
         @>
 
 module ``Promotion Tests`` =
-    open Xunit
-    open Utils
-    open CoreTypes
-    open Engine
+    open ChessFs.Common
+    open Coordinate
+    open Piece
+    open Setup
     open Notation
-    open ChessStateMachine
     open Helpers
-     
+
+    [<Fact>]
+    let ``Validation: more than one white king`` () =
+        {
+            playerInTurn = Player White
+            pieces =
+                Map.ofList [
+                    C7, WhiteKing
+                    E1, WhiteKing
+                    H8, BlackKing
+                ]
+            castlingRights = {  white = CastlingRights.none; black = CastlingRights.none }
+            pawnCapturableEnPassant = None
+            pliesWithoutPawnOrCapture = 0
+            numberOfMoves = 1
+        }
+        |> ChessState.fromRaw
+        |> (fun x -> match x with | Ok _ -> Assert.True false | Error x -> Assert.Equal(x, MoreThanOneKing White))
+
+    [<Fact>]
+    let ``Validation: more than one black king`` () =
+        {
+            playerInTurn = Player Black
+            pieces =
+                Map.ofList [
+                    C7, BlackKing
+                    E1, BlackKing
+                    H1, WhiteKing
+                ]
+            castlingRights = {  white = CastlingRights.none; black = CastlingRights.none }
+            pawnCapturableEnPassant = None
+            pliesWithoutPawnOrCapture = 0
+            numberOfMoves = 1
+        }
+        |> ChessState.fromRaw
+        |> (fun x -> match x with | Ok _ -> Assert.True false | Error x -> Assert.Equal(x, MoreThanOneKing Black))
+
     [<Fact>]
     let ``Promoting available actions``() =
         {
@@ -93,8 +131,7 @@ module ``Promotion Tests`` =
                     E1, WhiteKing
                     H8, BlackKing
                 ]
-            whitePlayerCastlingRights = CastlingRights.none
-            blackPlayerCastlingRights = CastlingRights.none
+            castlingRights = {  white = CastlingRights.none; black = CastlingRights.none }
             pawnCapturableEnPassant = None
             pliesWithoutPawnOrCapture = 0
             numberOfMoves = 1
@@ -115,8 +152,7 @@ module ``Promotion Tests`` =
                     E1, WhiteKing
                     H8, BlackKing
                 ]
-            whitePlayerCastlingRights = CastlingRights.none
-            blackPlayerCastlingRights = CastlingRights.none
+            castlingRights = {  white = CastlingRights.none; black = CastlingRights.none }
             pawnCapturableEnPassant = None
             pliesWithoutPawnOrCapture = 0
             numberOfMoves = 1
@@ -129,12 +165,10 @@ module ``Promotion Tests`` =
             "cxb8=B"; "cxb8=N"; "cxb8=Q"; "cxb8=R"]
 
 module ``Castling Tests`` =
-    open Xunit
-    open Utils
-    open CoreTypes
-    open Engine
+    open Coordinate
+    open Piece
+    open Setup
     open Notation
-    open ChessStateMachine
     open Helpers
 
     [<Fact>]
@@ -149,8 +183,7 @@ module ``Castling Tests`` =
                     G8, BlackRook
                     E4, BlackKing
                 ]
-            whitePlayerCastlingRights = CastlingRights.justKingside
-            blackPlayerCastlingRights = CastlingRights.none
+            castlingRights = {  white = CastlingRights.justKingside; black = CastlingRights.none }
             pawnCapturableEnPassant = None
             pliesWithoutPawnOrCapture = 0
             numberOfMoves = 1
@@ -172,8 +205,7 @@ module ``Castling Tests`` =
                     F8, BlackRook
                     E4, BlackKing
                 ]
-            whitePlayerCastlingRights = CastlingRights.justKingside
-            blackPlayerCastlingRights = CastlingRights.none
+            castlingRights = {  white = CastlingRights.justKingside; black = CastlingRights.none }
             pawnCapturableEnPassant = None
             pliesWithoutPawnOrCapture = 0
             numberOfMoves = 1
@@ -195,8 +227,7 @@ module ``Castling Tests`` =
                     H8, BlackRook
                     E3, BlackKing
                 ]
-            whitePlayerCastlingRights = CastlingRights.justKingside
-            blackPlayerCastlingRights = CastlingRights.none
+            castlingRights = {  white = CastlingRights.justKingside; black = CastlingRights.none }
             pawnCapturableEnPassant = None
             pliesWithoutPawnOrCapture = 0
             numberOfMoves = 1
@@ -216,8 +247,7 @@ module ``Castling Tests`` =
                     F8, BlackRook
                     H8, BlackKing
                 ]
-            whitePlayerCastlingRights = CastlingRights.none
-            blackPlayerCastlingRights = CastlingRights.none
+            castlingRights = {  white = CastlingRights.none; black = CastlingRights.none }
             pawnCapturableEnPassant = None
             pliesWithoutPawnOrCapture = 0
             numberOfMoves = 1

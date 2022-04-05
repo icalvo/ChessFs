@@ -1,34 +1,38 @@
-﻿module ChessGameConsole
+﻿namespace ChessFs.CommandLine
 
-open Engine
-open Notation
-open Output
-open GameConsole
+module ChessGameConsole =
 
-let isFinish = function
-    | Exiting -> true
-    | _ -> false
+    open Output
+    open GameConsole
+    open ChessFs.Common.StateMachine
+    open ChessFs.Chess
+    open ChessFs.Chess.Engine
+    open Notation
 
-let printHelp () =
-    printfn "You must input one of the actions in the list. These are the legal chess actions which are:
-:r --> Resign
-:a --> Accept a draw offer
-CHESSMOVE (e.g. Kd4) --> Play that move
-CHESSMOVE:d (e.g. g4:d) --> Play that move and offer a draw
+    let isFinish = function
+        | Exiting -> true
+        | _ -> false
 
-Once a move is played, the board will flip and you will be asked for an action for the opponent player.
-Also, you can enter 'h' to show this help and 'q' to quit the game."
+    let printHelp () =
+        printfn "You must input one of the actions in the list. These are the legal chess actions which are:
+    :r --> Resign
+    :a --> Accept a draw offer
+    CHESSMOVE (e.g. Kd4) --> Play that move
+    CHESSMOVE:d (e.g. g4:d) --> Play that move and offer a draw
 
-let chessConsoleTransition game =
-    let actions = PlayerActionOutcome.actions
-    let execute = ExecutableAction.executeFn
-    let normalizeAction action = (executableActionToAlgebraic action).ToLowerInvariant()
-    let normalizeInput (x: string) = x.ToLowerInvariant()
-    gameConsoleTransition game actions execute normalizeAction normalizeInput printOutcome printHelp
+    Once a move is played, the board will flip and you will be asked for an action for the opponent player.
+    Also, you can enter 'h' to show this help and 'q' to quit the game."
 
-open StateMachine
-let chessConsoleStateMachine game input =
-    let initialState = AskingAction game
+    let chessConsoleTransition game =
+        let actions = PlayerActionOutcome.actions
+        let execute = ExecutableAction.executeFn
+        let normalizeAction action = (executableActionToAlgebraic action).ToLowerInvariant()
+        let normalizeInput (x: string) = x.ToLowerInvariant()
+        gameConsoleTransition game actions execute normalizeAction normalizeInput printOutcome printHelp
 
-    stateMachine (chessConsoleTransition game) isFinish initialState input
-    |> Seq.toArray
+    open StateMachine
+    let chessConsoleStateMachine game input =
+        let initialState = AskingAction game
+
+        stateMachine (chessConsoleTransition game) isFinish initialState input
+        |> Seq.toArray
